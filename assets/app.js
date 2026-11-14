@@ -21,6 +21,37 @@ const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? 
 let ST = {}, UPD = '';
 let P = [], byId = {}, byType = {}, GROUPS = {}, KEY = {}, TSLUG = {}, GSLUG = {}, BRANDS = [];
 let CMP = store.get('ac-cmp', []);
+let PLAN = store.get('ac-plan', []);
+const R_ = (a, b) => ({ r: [a, b] });
+const PRESETS = {
+  'Refrigerator': [['Top freezer', { Layout: ['Top freezer'] }], ['Bottom freezer', { Layout: ['Bottom freezer (combi)'] }], ['Side-by-side', { Layout: ['Side-by-side'] }], ['French door', { Layout: ['French door / multi-door'] }], ['Single door', { Layout: ['Single door'] }],
+    ['Under 350 L', { 'Capacity (L)': R_(null, 349) }], ['350–450 L', { 'Capacity (L)': R_(350, 450) }], ['450–550 L', { 'Capacity (L)': R_(451, 550) }], ['550 L+', { 'Capacity (L)': R_(551, null) }], ['No frost + inverter', { 'No frost': true, Inverter: true }], ['Water dispenser', { 'Water dispenser': true }]],
+  'Freezer': [['Upright (drawers)', { Type: ['Upright'] }], ['Chest', { Type: ['Chest'] }], ['No frost', { 'No frost': true }], ['Under 200 L', { 'Capacity (L)': R_(null, 199) }], ['200–300 L', { 'Capacity (L)': R_(200, 300) }], ['300 L+', { 'Capacity (L)': R_(301, null) }]],
+  'Washing machine': [['Front load', { Loading: ['Front load'] }], ['Top load', { Loading: ['Top load'] }], ['Fully automatic', { Automation: ['Fully automatic'] }], ['Half automatic (twin tub)', { Automation: ['Half automatic (twin tub)'] }],
+    ['Up to 7 kg', { 'Wash capacity (kg)': R_(null, 7.5) }], ['8 kg', { 'Wash capacity (kg)': R_(8, 8.5) }], ['9–10.5 kg', { 'Wash capacity (kg)': R_(9, 10.5) }], ['11 kg+', { 'Wash capacity (kg)': R_(11, null) }], ['Inverter / direct drive', { 'Direct drive / inverter': true }], ['Steam', { Steam: true }]],
+  'Washer-dryer': [['Up to 8 kg wash', { 'Wash capacity (kg)': R_(null, 8.5) }], ['9–10.5 kg wash', { 'Wash capacity (kg)': R_(9, 10.5) }], ['11 kg+ wash', { 'Wash capacity (kg)': R_(11, null) }], ['Steam', { Steam: true }]],
+  'Dryer': [['Heat pump', { 'Dryer type': ['Heat pump'] }], ['Condenser', { 'Dryer type': ['Condenser'] }], ['8–9 kg', { 'Dry capacity (kg)': R_(8, 9) }], ['10 kg+', { 'Dry capacity (kg)': R_(10, null) }]],
+  'Dishwasher': [['Freestanding', { Installation: ['Freestanding'] }], ['Built-in', { Installation: ['Built-in', 'Semi-integrated'] }], ['Table-top', { Installation: ['Table-top'] }], ['Slim 45 cm', { 'Width (cm)': [45] }], ['12+ place settings', { 'Place settings': R_(12, null) }], ['Inverter', { Inverter: true }]],
+  'TV': [['32"', { 'Screen (inch)': R_(32, 32) }], ['40–43"', { 'Screen (inch)': R_(40, 43) }], ['50"', { 'Screen (inch)': R_(48, 50) }], ['55"', { 'Screen (inch)': R_(55, 55) }], ['65"', { 'Screen (inch)': R_(65, 65) }], ['75–77"', { 'Screen (inch)': R_(75, 77) }], ['80–86"', { 'Screen (inch)': R_(80, 86) }], ['98"+', { 'Screen (inch)': R_(98, null) }],
+    ['OLED', { Panel: ['OLED'] }], ['QLED / Mini LED', { Panel: ['QLED', 'Neo QLED', 'Mini LED', 'The Frame (QLED)', 'Micro RGB'] }], ['Built-in receiver', { 'Built-in receiver': true }]],
+  'Air conditioner': [['1.5 HP', { 'Capacity (HP)': R_(1.25, 1.5) }], ['2.25 HP', { 'Capacity (HP)': R_(2, 2.25) }], ['3 HP', { 'Capacity (HP)': R_(2.75, 3) }], ['4 HP+', { 'Capacity (HP)': R_(4, null) }], ['Cooling & heating', { Mode: ['Cooling & heating'] }], ['Cooling only', { Mode: ['Cooling only'] }], ['Inverter', { Inverter: true }]],
+  'Water heater': [['Electric tank', { Type: ['Electric tank'] }], ['Gas', { Type: ['Gas'] }], ['Instant electric', { Type: ['Instant electric'] }], ['Up to 30 L', { 'Tank / flow (L)': R_(null, 30) }], ['40–60 L', { 'Tank / flow (L)': R_(35, 60) }], ['80 L+', { 'Tank / flow (L)': R_(80, null) }], ['Digital display', { 'Digital display': true }]],
+  'Cooker': [['90 cm', { 'Width (cm)': [90] }], ['60 cm', { 'Width (cm)': [60] }], ['5 burners', { Burners: [5] }], ['4 burners', { Burners: [4] }], ['Full safety', { 'Full safety': true }], ['With fan', { Fan: true }]],
+  'Hob': [['Gas', { Type: ['Gas'] }], ['Electric / ceramic', { Type: ['Electric / ceramic'] }], ['Induction', { Type: ['Induction'] }], ['60 cm', { 'Width (cm)': [60] }], ['90 cm', { 'Width (cm)': [90] }], ['5 burners', { 'Burners / zones': [5] }]],
+  'Hood': [['60 cm', { 'Width (cm)': [60] }], ['90 cm', { 'Width (cm)': [90] }], ['Chimney / wall', { Type: ['Chimney / wall'] }], ['T-shape', { Type: ['T-shape wall'] }], ['Island', { Type: ['Island'] }]],
+  'Built-in oven': [['Gas', { Fuel: ['Gas'] }], ['Electric', { Fuel: ['Electric'] }], ['60 cm', { 'Width (cm)': [60] }], ['90 cm', { 'Width (cm)': [90] }], ['With fan', { Fan: true }], ['Digital display', { 'Digital display': true }]],
+  'Microwave': [['Up to 25 L', { 'Capacity (L)': R_(null, 25) }], ['26–35 L', { 'Capacity (L)': R_(26, 35) }], ['36 L+', { 'Capacity (L)': R_(36, null) }], ['With grill', { Grill: true }], ['Built-in', { 'Built-in': true }]],
+  'Vacuum & floor care': [['Canister', { Type: ['Canister', 'Wet & dry canister'] }], ['Cordless stick', { Type: ['Cordless stick'] }], ['Robot', { Type: ['Robot'] }], ['Steam / wet floor', { Type: ['Steam cleaner', 'Wet floor cleaner'] }], ['Carpet washer', { Type: ['Carpet / upholstery washer'] }]],
+  'Fan': [['Stand', { Type: ['Stand'] }], ['Ceiling', { Type: ['Ceiling'] }], ['Wall', { Type: ['Wall'] }], ['Desk / box / tower', { Type: ['Desk / table', 'Box', 'Tower'] }], ['Exhaust', { Type: ['Exhaust / ventilation'] }], ['With remote', { Remote: true }]],
+  'Air fryer': [['Up to 4 L', { 'Capacity (L)': R_(null, 4) }], ['4.5–6 L', { 'Capacity (L)': R_(4.1, 6.5) }], ['7 L+', { 'Capacity (L)': R_(6.6, null) }], ['Dual basket', { 'Dual basket': true }], ['Digital', { Digital: true }], ['Oven style', { 'Oven style': true }]],
+  'Water dispenser': [['Bottom loading', { 'Bottom loading': true }], ['2 taps', { Taps: [2] }], ['3 taps', { Taps: [3] }], ['With fridge cabinet', { 'Fridge cabinet': true }]],
+  'Coffee machine': [['Espresso', { Type: ['Espresso'] }], ['Capsule', { Type: ['Capsule'] }], ['Bean-to-cup', { Type: ['Bean-to-cup automatic'] }], ['Turkish', { Type: ['Turkish coffee'] }], ['Drip / American', { Type: ['Drip / American'] }], ['Grinder', { Type: ['Grinder'] }]],
+  'Iron & steamer': [['Steam iron', { Type: ['Steam iron'] }], ['Steam station', { Type: ['Steam station'] }], ['Garment steamer', { Type: ['Garment steamer'] }]],
+  'Heater': [['Oil radiator', { Type: ['Oil radiator'] }], ['Fan heater', { Type: ['Fan heater'] }], ['Halogen / quartz', { Type: ['Halogen / quartz'] }], ['Ceramic', { Type: ['Ceramic'] }]],
+  'Air cooler & purifier': [['Air cooler', { Type: ['Air cooler'] }], ['Air purifier', { Type: ['Air purifier'] }], ['Humidifier', { Type: ['Humidifier', 'Dehumidifier'] }]],
+  'Kettle': [['Glass', { Glass: true }], ['1.7 L+', { 'Capacity (L)': R_(1.7, null) }]],
+  'Water filter': [['RO (reverse osmosis)', { 'RO (reverse osmosis)': true }], ['5+ stages', { Stages: R_(5, null) }]],
+};
 const groupOf = t => Object.keys(GROUPS).find(g => GROUPS[g].includes(t));
 const gIndex = g => Object.keys(GROUPS).indexOf(g);
 const img = p => p.th ? `img/${p.id}.webp` : thumb(p.im);
@@ -45,6 +76,7 @@ function specChips(p, n = 4) {
 function card(p) {
   const on = CMP.includes(p.id), d = disc(p), best = p.of[0], n = p.of.length, g = gap(p), oos = !inStock(p);
   return `<article class="card${on ? ' sel' : ''}">
+   <button class="pbtn${PLAN.includes(p.id) ? ' on' : ''}" data-plan="${p.id}" title="${PLAN.includes(p.id) ? 'In your home plan' : 'Add to home plan'}" aria-label="Add to home plan"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M12 13v5M9.5 15.5h5"/></svg></button>
    <a class="pic" href="#/p/${p.id}" aria-label="${esc(p.n)}"><img src="${img(p)}" alt="" loading="lazy" width="160" height="160">${d >= 1 ? `<span class="off">−${d}%</span>` : ''}${n > 1 ? `<span class="fdl">${n} stores</span>` : ''}</a>
    <div class="cb"><div class="brand">${esc(p.b)}</div><a class="nm" href="#/p/${p.id}">${esc(p.n)}</a>
    <div class="price"><strong>${p.p ? fmt(p.p) + '<small>EGP</small>' : 'Price on request'}</strong>${p.o && p.o > p.p ? `<s>${fmt(p.o)}</s>` : ''}</div>
@@ -69,6 +101,13 @@ function deptTiles() {
 
 /* ---------- compare tray ---------- */
 function saveCmp() { store.set('ac-cmp', CMP); renderTray(); }
+function savePlan() { store.set('ac-plan', PLAN); const c = $('pcount'); if (c) c.textContent = PLAN.length || ''; document.querySelectorAll('[data-plan]').forEach(b => { const on = PLAN.includes(b.dataset.plan); b.classList.toggle('on', on); if (b.dataset.big) b.textContent = on ? '✓ In your home plan' : 'Add to home plan'; else b.title = on ? 'In your home plan' : 'Add to home plan'; }); }
+function togglePlan(id) {
+  const i = PLAN.indexOf(id), p = byId[id];
+  if (i >= 0) { PLAN.splice(i, 1); toast('Removed from your home plan.'); }
+  else { const same = PLAN.find(x => byId[x] && byId[x].t === p.t); PLAN.push(id); toast(same ? `Added. Your plan now has ${PLAN.filter(x => byId[x].t === p.t).length} ${plural(p.t).toLowerCase()}.` : `Added to your home plan (${PLAN.length} item${PLAN.length > 1 ? 's' : ''}).`); }
+  savePlan();
+}
 function toggleCmp(id) {
   const p = byId[id]; const i = CMP.indexOf(id);
   if (i >= 0) { CMP.splice(i, 1); saveCmp(); return; }
@@ -116,6 +155,7 @@ function renderHome() {
    <div class="sh rv"><div><h2 class="display">Same model, different price</h2><p>The biggest gap between stores in each appliance type, counting in-stock offers only.</p></div><a class="more" href="#/deals">See all ${fmt(gaps.length)} →</a></div>
    <div class="rail rv">${topGaps.map(card).join('')}</div>
   </div></section>
+  <section class="sec" style="padding-top:0"><div class="wrap"><div class="cta night rv planc"><div><h2 class="display">Furnishing a new home?</h2><p>Start from a budget, mid-range or premium kit of the essentials, swap what you like, and see your total at the cheapest stores.</p></div><div class="kmini">${Object.keys(TIER).map(k => `<a href="#/plan" class="km"><span>${TIER[k][1]}</span><b>${fmtK(kitFor(k).reduce((a, p) => a + p.p, 0))}</b></a>`).join('')}</div><a class="btn" href="#/plan">Plan my home</a></div></div></section>
   <section class="sec" style="padding-top:0"><div class="wrap">
    <div class="sh rv"><div><h2 class="display">Shop by department</h2><p>Each type has its own filters: doors and layout for fridges, panel type for TVs, basket size for air fryers.</p></div><a class="more" href="#/departments">All departments →</a></div>
    ${deptTiles()}
@@ -216,6 +256,77 @@ function renderSearch(qs) {
 
 /* ---------- catalogue ---------- */
 const C = { type: null, brands: new Set(), stores: new Set(), f: {}, pmin: null, pmax: null, instock: true, multi: false, q: '', sort: 'pa', meta: [], lim: 60 };
+function catQS() {
+  const q = new URLSearchParams();
+  if (C.brands.size) q.set('b', [...C.brands].join('|'));
+  if (C.stores.size) q.set('st', [...C.stores].join('|'));
+  if (C.pmin != null) q.set('pmin', C.pmin); if (C.pmax != null) q.set('pmax', C.pmax);
+  if (!C.instock) q.set('all', '1'); if (C.multi) q.set('multi', '1');
+  if (C.q) q.set('q', C.q); if (C.sort !== 'pa') q.set('sort', C.sort);
+  for (const [k, v] of Object.entries(C.f)) {
+    if (v == null) continue;
+    if (v === true) q.set('f.' + k, '1');
+    else if (v instanceof Set) { if (v.size) q.set('f.' + k, [...v].join('|')); }
+    else if (v.min != null || v.max != null) q.set('r.' + k, (v.min ?? '') + '~' + (v.max ?? ''));
+  }
+  return q.toString();
+}
+function syncURL() { const u = '#/c/' + TSLUG[C.type] + (catQS() ? '?' + catQS() : ''); if (location.hash !== u) history.replaceState(null, '', u); }
+function readState(q) {
+  Object.assign(C, { brands: new Set(), stores: new Set(), f: {}, pmin: null, pmax: null, instock: true, multi: false, q: '', sort: 'pa' });
+  if (q.get('b')) C.brands = new Set(q.get('b').split('|'));
+  if (q.get('st')) C.stores = new Set(q.get('st').split('|').filter(s => ST[s]));
+  if (q.get('pmin')) C.pmin = +q.get('pmin'); if (q.get('pmax')) C.pmax = +q.get('pmax');
+  if (q.get('all')) C.instock = false; if (q.get('multi')) C.multi = true;
+  if (q.get('q')) C.q = q.get('q'); if (q.get('sort')) C.sort = q.get('sort');
+  for (const [k, v] of q.entries()) {
+    if (k.startsWith('f.')) { const key = k.slice(2), m = C.meta.find(x => x.k === key); if (!m) continue;
+      if (m.kind === 'bool') C.f[key] = true; else C.f[key] = new Set(v.split('|').map(x => m.vals.some(y => typeof y === 'number') ? +x : x)); }
+    if (k.startsWith('r.')) { const [a, b] = v.split('~'); C.f[k.slice(2)] = { min: a === '' ? null : +a, max: b === '' ? null : +b }; }
+  }
+}
+function presetSel(def) {
+  const out = {};
+  for (const [k, v] of Object.entries(def)) {
+    const m = C.meta.find(x => x.k === k); if (!m) return null;
+    if (v === true) { if (m.kind !== 'bool') return null; out[k] = true; }
+    else if (v.r) { const [a, b] = v.r; out[k] = m.kind === 'range' ? { min: a, max: b } : new Set(m.vals.filter(x => (a == null || x >= a) && (b == null || x <= b))); }
+    else out[k] = new Set(v.filter(x => m.vals.includes(x)));
+  }
+  return out;
+}
+const sameSel = (a, b) => { if (a === true || b === true) return a === b; if (a instanceof Set && b instanceof Set) return a.size === b.size && [...a].every(x => b.has(x)); if (a && b && !(a instanceof Set) && !(b instanceof Set)) return a.min === b.min && a.max === b.max; return false; };
+function presetOn(sel) { return Object.entries(sel).every(([k, v]) => sameSel(C.f[k], v)); }
+function presetMatch(p, sel) {
+  return Object.entries(sel).every(([k, sv]) => { const v = p.f[k]; if (sv === true) return v === 'Yes'; if (sv instanceof Set) return sv.has(v); return v != null && (sv.min == null || v >= sv.min) && (sv.max == null || v <= sv.max); });
+}
+function renderPresets() {
+  const el = $('presets'); if (!el) return;
+  const ps = (PRESETS[C.type] || []).map(([l, d]) => [l, presetSel(d)]).filter(([, s]) => s && Object.values(s).every(v => v === true || !(v instanceof Set) || v.size));
+  const base = byType[C.type].filter(p => !C.instock || inStock(p));
+  const items = ps.map(([l, s], i) => { const n = base.filter(p => presetMatch(p, s)).length; return n ? `<button class="pre${presetOn(s) ? ' on' : ''}" data-pre="${i}">${esc(l)} <small>${fmt(n)}</small></button>` : ''; }).join('');
+  el.innerHTML = items ? `<span class="prel">Popular choices</span>${items}` : '';
+  el._ps = ps;
+}
+function renderPicks(rows) {
+  const el = $('picks'); if (!el) return;
+  const L = rows.filter(p => inStock(p) && p.p);
+  if (L.length < 6) { el.innerHTML = ''; return; }
+  const key = KEY[C.type], picks = [], used = new Set();
+  const add = (lab, why, p) => { if (p && !used.has(p.id)) { used.add(p.id); picks.push([lab, why, p]); } };
+  const cheap = L.reduce((a, b) => b.p < a.p ? b : a); add('Lowest price', `The cheapest match, at ${sname(cheap.of[0].s)}`, cheap);
+  if (key) { const ks = L.map(p => p.f[key]).filter(v => typeof v === 'number').sort((a, b) => a - b);
+    if (ks.length >= 6) { const med = ks[Math.floor(ks.length * 0.6)], pool = L.filter(p => p.f[key] >= med);
+      if (pool.length) { const v = pool.reduce((a, b) => b.p < a.p ? b : a); add('Best value', `Cheapest with ${unit(key) === key ? key.toLowerCase() : ''}${fmt(med)}${unit(key) !== key ? ' ' + unit(key) : ''} or more`, v); } } }
+  const wide = L.filter(p => live(p).length >= 3).sort((a, b) => live(b).length - live(a).length || a.p - b.p)[0];
+  if (wide) add('Easiest to price-check', `Sold by ${live(wide).length} stores, so you can compare`, wide);
+  const sv = L.filter(p => gapPct(p) >= 8).sort((a, b) => gap(b) - gap(a))[0]; if (sv) add('Biggest saving', `${fmt(gap(sv))} EGP less than the dearest store`, sv);
+  const pr = L.slice().sort((a, b) => b.p - a.p), prem = pr.find(p => live(p).length >= 2) || pr[0]; if (L.length >= 12) add('Top of the range', 'The highest-priced match sold by 2+ stores', prem);
+  const win = {}; let shared = 0; L.forEach(p => { if (live(p).length > 1) { shared++; const s = live(p)[0].s; win[s] = (win[s] || 0) + 1; } });
+  const ws = Object.entries(win).sort((a, b) => b[1] - a[1]);
+  el.innerHTML = `<div class="pkh"><h2>Top picks for these filters</h2>${ws.length && shared >= 5 ? `<p>${sdot(ws[0][0])}<b>${esc(sname(ws[0][0]))}</b> is cheapest on ${Math.round(ws[0][1] / shared * 100)}% of the ${fmt(shared)} matching models sold by more than one store${ws[1] ? `, then ${esc(sname(ws[1][0]))} (${Math.round(ws[1][1] / shared * 100)}%)` : ''}.</p>` : ''}</div>
+   <div class="pkg">${picks.map(([l, w, p]) => `<div class="pk"><div class="pkl"><b>${esc(l)}</b><span>${esc(w)}</span></div>${card(p)}</div>`).join('')}</div>`;
+}
 function buildMeta() {
   const rows = byType[C.type]; const keys = [];
   rows.forEach(p => Object.keys(p.f).forEach(k => { if (!keys.includes(k)) keys.push(k); }));
@@ -223,7 +334,7 @@ function buildMeta() {
     const vals = rows.map(p => p.f[k]).filter(v => v != null); if (!vals.length) return null;
     const uniq = [...new Set(vals)];
     if (uniq.every(v => v === 'Yes' || v === 'No')) return uniq.length === 2 ? { k, kind: 'bool' } : null;
-    if (uniq.every(v => typeof v === 'number')) { uniq.sort((a, b) => a - b); return uniq.length <= 9 ? { k, kind: 'cat', vals: uniq } : { k, kind: 'range', vals: uniq }; }
+    if (uniq.every(v => typeof v === 'number')) { uniq.sort((a, b) => a - b); return uniq.length <= 12 ? { k, kind: 'cat', vals: uniq } : { k, kind: 'range', vals: uniq }; }
     if (uniq.length < 2) return null;
     return { k, kind: 'cat', vals: uniq.sort((a, b) => vals.filter(v => v === b).length - vals.filter(v => v === a).length) };
   }).filter(Boolean);
@@ -245,15 +356,14 @@ function match(p, skip) {
   return true;
 }
 function renderCatalog(t, q) {
-  if (C.type !== t) { Object.assign(C, { type: t, brands: new Set(), stores: new Set(), f: {}, pmin: null, pmax: null, instock: true, multi: false, q: '', sort: 'pa' }); buildMeta(); }
+  if (C.type !== t) { C.type = t; buildMeta(); }
+  readState(q);
   C.lim = 60;
-  if (q.get('b')) C.brands = new Set([q.get('b')]);
-  if (q.get('q') != null) C.q = q.get('q');
   const g = groupOf(t), gi = gIndex(g), rows = byType[t];
   app.innerHTML = pageHead({ crumbs: [['#/departments', 'Departments'], ['#/d/' + GSLUG[g], g], [null, plural(t)]], title: esc(plural(t)), sub: `${fmt(rows.length)} models from ${new Set(rows.map(p => p.b)).size} brands across ${Object.keys(ST).length} stores. Narrow them down, then add up to 4 to compare.`,
     sibs: `<div class="sibs">${GROUPS[g].filter(x => byType[x]).map(x => `<a class="sib${x === t ? ' on' : ''}" href="#/c/${TSLUG[x]}">${esc(x)}<small>${fmt(byType[x].length)}</small></a>`).join('')}</div>` }) +
   `<div class="wrap"><div class="cat"><aside class="flt" id="filters" aria-label="Filters"></aside><section>
-   <div class="stats" id="stats"></div><div class="strip" id="strip"></div>
+   <div class="presets" id="presets"></div><div class="stats" id="stats"></div><div class="picks" id="picks"></div><div class="strip" id="strip"></div>
    <div class="tools"><span class="cnt" id="cnt"></span><button class="fbtn" id="fbtn">Filters</button>
    <input class="sel" id="cq" type="search" placeholder="Search in ${esc(t==='TV'?'TVs':plural(t).toLowerCase())}" value="${esc(C.q)}" style="width:min(240px,100%)" aria-label="Search in this type">
    <select class="sel" id="sort" aria-label="Sort">${[['pa', 'Price: low to high'], ['pd', 'Price: high to low'], ['ga', 'Biggest gap between stores'], ['da', 'Biggest discount'], ['ka', KEY[t] ? 'Largest ' + KEY[t].replace(/ \(.*\)/, '').toLowerCase() : 'Key spec'], ['br', 'Brand A–Z']].map(([v, l]) => `<option value="${v}"${C.sort === v ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -261,6 +371,7 @@ function renderCatalog(t, q) {
   renderFilters(); renderResults();
 }
 function renderFilters() {
+  renderPresets();
   const rows = byType[C.type];
   const bc = {}; rows.filter(p => match(p, 'brand')).forEach(p => bc[p.b] = (bc[p.b] || 0) + 1);
   const allB = [...new Set(rows.map(p => p.b))].sort((a, b) => (bc[b] || 0) - (bc[a] || 0) || a.localeCompare(b));
@@ -287,7 +398,7 @@ function renderResults() {
   const rows = byType[C.type].filter(p => match(p)).sort((a, b) => s === 'pa' ? (a.p ?? 1e12) - (b.p ?? 1e12) : s === 'pd' ? (b.p ?? -1) - (a.p ?? -1) : s === 'ga' ? gapPct(b) - gapPct(a) || gap(b) - gap(a) : s === 'da' ? disc(b) - disc(a) : s === 'ka' ? (kv(b) ?? -1) - (kv(a) ?? -1) : a.b.localeCompare(b.b));
   const pr = rows.map(p => p.p).filter(v => v != null).sort((a, b) => a - b), med = pr.length ? pr[Math.floor(pr.length / 2)] : null;
   $('stats').innerHTML = `<div style="--c:${GC[0]}"><span>Matching</span><strong>${rows.length}</strong></div><div style="--c:${GC[1]}"><span>Brands</span><strong>${new Set(rows.map(p => p.b)).size}</strong></div><div style="--c:${GC[2]}"><span>Price range (EGP)</span><strong>${pr.length ? fmtK(pr[0]) + '–' + fmtK(pr[pr.length - 1]) : '—'}</strong></div><div style="--c:${GC[3]}"><span>Median price (EGP)</span><strong>${med ? fmt(med) : '—'}</strong></div>`;
-  renderStrip(rows);
+  renderStrip(rows); renderPicks(rows); syncURL();
   $('cnt').textContent = `${fmt(rows.length)} of ${fmt(byType[C.type].length)} match`;
   $('grid').innerHTML = rows.length ? rows.slice(0, C.lim).map(card).join('') + (rows.length > C.lim ? `<div class="more-row"><button class="btn ghost" id="moreb">Show ${Math.min(60, rows.length - C.lim)} more of ${fmt(rows.length - C.lim)}</button></div>` : '') : `<div class="empty">Nothing matches these filters. <button class="link" id="reset2">Reset filters</button></div>`;
 }
@@ -314,7 +425,7 @@ function renderProduct(id) {
   <div><div class="brand" style="font-size:15px">${esc(p.b)} · ${esc(p.t)}</div><h1>${esc(p.n)}</h1>
    <div class="pbox"><div class="price"><strong>${fmt(p.p)}<small>EGP</small></strong>${p.o && p.o > p.p ? `<s>${fmt(p.o)} EGP</s>` : ''}</div>
     <p class="bestat">${inStock(p) ? `${L.length > 1 ? 'Lowest price, at' : 'At'} <b>${esc(sname(best.s))}</b>${sv ? ` · <span class="save">${fmt(sv)} EGP less than the dearest store</span>` : ''}` : 'Out of stock everywhere we checked; last listed price shown.'}</p>
-    <div class="acts"><a class="btn green" href="${esc(ourl(best))}" target="_blank" rel="noopener">Buy at ${esc(sname(best.s))} ↗</a><button class="btn ghost cmpb${on ? ' on' : ''}" data-cmp="${p.id}" data-big="1" style="border-radius:12px;min-height:48px;font-size:15px">${on ? '✓ Added' : 'Add to compare'}</button></div></div>
+    <div class="acts"><a class="btn green" href="${esc(ourl(best))}" target="_blank" rel="noopener">Buy at ${esc(sname(best.s))} ↗</a><button class="btn ghost cmpb${on ? ' on' : ''}" data-cmp="${p.id}" data-big="1" style="border-radius:12px;min-height:48px;font-size:15px">${on ? '✓ Added' : 'Add to compare'}</button><button class="btn ghost pbig${PLAN.includes(p.id) ? ' on' : ''}" data-plan="${p.id}" data-big="1">${PLAN.includes(p.id) ? '✓ In your home plan' : 'Add to home plan'}</button></div></div>
    <h2 class="h3">Prices at ${p.of.length} store${p.of.length > 1 ? 's' : ''}</h2>
    <table class="spec offers"><tbody>${offers}</tbody></table>
    <h2 class="h3">Specs</h2>
@@ -354,6 +465,56 @@ function renderCompare(ids) {
     `<section class="sec" style="padding-top:28px"><div class="wrap"><div class="toolbar"><button class="btn" id="share" data-url="${esc(share)}">Copy link to this comparison</button><a class="btn ghost" href="#/c/${TSLUG[t]}">Add another</a><button class="link" id="cclear" style="margin-left:auto">Clear comparison</button></div><div class="scroll">${h}</div></div></section>`;
 }
 
+/* ---------- home plan ---------- */
+const KITS = {
+  'Refrigerator': { pre: p => ['Top freezer', 'Bottom freezer (combi)'].includes(p.f.Layout) && p.f['No frost'] === 'Yes' && p.f['Capacity (L)'] >= 350 && p.f['Capacity (L)'] <= 550 },
+  'Washing machine': { pre: p => p.f.Automation === 'Fully automatic' && p.f['Wash capacity (kg)'] >= 7 && p.f['Wash capacity (kg)'] <= 10 },
+  'Cooker': { pre: p => p.f.Burners === 5 },
+  'TV': { pre: p => p.f['Screen (inch)'] === 55 },
+  'Air conditioner': { pre: p => p.f['Capacity (HP)'] === 1.5 },
+  'Water heater': { pre: p => p.f.Type === 'Electric tank' && p.f['Tank / flow (L)'] >= 40 && p.f['Tank / flow (L)'] <= 60 },
+  'Microwave': { pre: p => p.f['Capacity (L)'] >= 20 && p.f['Capacity (L)'] <= 32 },
+  'Vacuum & floor care': { pre: p => p.f.Type === 'Canister' },
+  'Water dispenser': { pre: p => true },
+};
+const TIER = { budget: [0.15, 'Budget'], mid: [0.5, 'Mid-range'], premium: [0.85, 'Premium'] };
+function kitFor(tier) {
+  const q = TIER[tier][0];
+  return Object.entries(KITS).map(([t, k]) => {
+    const pool = (byType[t] || []).filter(p => inStock(p) && p.p && k.pre(p));
+    if (!pool.length) return null;
+    const bc = {}; pool.forEach(p => bc[p.b] = (bc[p.b] || 0) + 1);
+    const known = pool.filter(p => bc[p.b] >= 3); const P2 = (known.length >= 8 ? known : pool).sort((a, b) => a.p - b.p);
+    const target = P2[Math.min(P2.length - 1, Math.floor(P2.length * q))].p;
+    const near = P2.filter(p => Math.abs(p.p - target) <= target * 0.08);
+    return (near.filter(p => live(p).length >= 2).sort((a, b) => live(b).length - live(a).length || Math.abs(a.p - target) - Math.abs(b.p - target))[0]) || near[0] || P2[0];
+  }).filter(Boolean);
+}
+function applyKit(tier) { PLAN = kitFor(tier).map(p => p.id); savePlan(); toast(`Filled your plan with the ${TIER[tier][1].toLowerCase()} kit. Swap anything you like.`); renderPlan(); }
+function renderPlan(ids) {
+  if (ids && ids.length) { const v = ids.map(String).filter(i => byId[i]); if (v.length) { PLAN = v; savePlan(); history.replaceState(null, '', '#/plan'); } }
+  const its = PLAN.map(i => byId[i]).filter(Boolean);
+  const kits = Object.keys(TIER).map(k => { const ks = kitFor(k); return `<div class="kit"><b>${TIER[k][1]}</b><strong>${fmt(ks.reduce((a, p) => a + p.p, 0))}<small> EGP</small></strong><span>${ks.length} essentials, from ${esc([...new Set(ks.map(p => p.b))].slice(0, 4).join(', '))}${new Set(ks.map(p => p.b)).size > 4 ? ' and more' : ''}</span><button class="btn${k === 'mid' ? ' green' : ' ghost'}" data-kit="${k}">Use this kit</button></div>`; }).join('');
+  let body = '';
+  if (its.length) {
+    const tot = its.reduce((a, p) => a + p.p, 0);
+    const dear = its.reduce((a, p) => { const L = live(p); return a + (L.length ? Math.max(...L.map(o => o.p)) : p.p); }, 0);
+    const per = Object.keys(ST).map(s => { const has = its.filter(p => p.of.some(o => o.s === s && o.in !== 0)); return { s, n: has.length, sum: has.reduce((a, p) => a + p.of.find(o => o.s === s && o.in !== 0).p, 0), best: its.filter(p => inStock(p) && p.of[0].s === s).length }; }).filter(x => x.n).sort((a, b) => b.best - a.best || b.n - a.n);
+    const groups = Object.keys(GROUPS).map(g => [g, its.filter(p => groupOf(p.t) === g)]).filter(([, a]) => a.length);
+    body = `<div class="plan">
+     <div class="plist"><div class="addmore"><span class="prel">Add more</span>${['Refrigerator', 'Washing machine', 'Cooker', 'TV', 'Air conditioner', 'Water heater', 'Dishwasher', 'Freezer', 'Hood', 'Hob', 'Built-in oven', 'Microwave', 'Dryer', 'Air fryer', 'Kettle', 'Iron & steamer', 'Fan', 'Heater', 'Vacuum & floor care', 'Water dispenser'].filter(t => byType[t] && !its.some(p => p.t === t)).map(t => `<a class="pre" href="#/c/${TSLUG[t]}">+ ${esc(t === 'TV' ? 'TV' : t)}</a>`).join('')}</div>${groups.map(([g, a]) => `<h3>${esc(g)}</h3>${a.map(p => `<div class="prow"><a href="#/p/${p.id}"><img src="${img(p)}" alt="" loading="lazy"></a>
+       <div class="pinfo"><small>${esc(p.t)} · ${esc(p.b)}</small><a href="#/p/${p.id}">${esc(p.n)}</a><span class="at">${sdot(p.of[0].s)}${inStock(p) ? (live(p).length > 1 ? 'Cheapest at ' : 'At ') : 'Out of stock · '}<b>${esc(sname(p.of[0].s))}</b>${gap(p) ? `<span class="sv">save ${fmt(gap(p))}</span>` : ''}</span></div>
+       <div class="pprice"><strong>${fmt(p.p)}</strong><small>EGP</small><div><a href="#/c/${TSLUG[p.t]}">Swap</a> · <button class="link" data-plan="${p.id}">Remove</button></div></div></div>`).join('')}`).join('')}</div>
+     <aside class="psum"><h3>Your total</h3><div class="ptot"><strong>${fmt(tot)}</strong><small>EGP</small></div><p>Buying each item at its cheapest in-stock store. At the dearest stores the same list costs ${fmt(dear)} EGP, <b>${fmt(dear - tot)} EGP more</b>.</p>
+      <h4>By store</h4><table class="spec"><tbody>${per.map(x => `<tr><th>${sdot(x.s)}${esc(sname(x.s))}</th><td>${x.best} cheapest</td><td>${x.n}/${its.length} items${x.n === its.length ? ` · ${fmt(x.sum)}` : ''}</td></tr>`).join('')}</tbody></table>
+      <p class="note">“${its.length}/${its.length} items” means you could buy everything at that store, at the total shown.</p>
+      <div class="pact"><button class="btn" id="share" data-url="${esc(location.href.split('#')[0] + '#/plan/' + its.map(p => p.id).join(','))}">Copy link to this plan</button><button class="link" id="planclear">Clear plan</button></div></aside></div>`;
+  } else body = `<div class="empty" style="text-align:left">Your plan is empty. Start from a kit above, or tap the <b>house button</b> on any product to add it.</div>`;
+  app.innerHTML = pageHead({ crumbs: [[null, 'Home plan']], title: 'Furnish your home', sub: 'Build a list of everything you need, see the cheapest store for each item and your total. It is saved in this browser, and you can share it as a link.' }) +
+   `<section class="sec" style="padding-top:30px"><div class="wrap"><h2 class="h3" style="margin-top:0">Start from a ready-made kit</h2><p class="note" style="margin:0 0 14px">Typical choices for a new home: a 350–550 L no-frost fridge, a 7–10 kg automatic washer, a 5-burner cooker, a 55" TV, a 1.5 HP AC, a 40–60 L water heater, a microwave, a canister vacuum and a water dispenser. Picked at the low, middle and high end of in-stock prices, preferring models sold by several stores.</p>
+   <div class="kits">${kits}</div>${body}</div></section>`;
+}
+
 /* ---------- about, 404 ---------- */
 function renderAbout() {
   app.innerHTML = pageHead({ crumbs: [[null, 'How it works']], title: 'How this site works', sub: 'What the numbers mean, where they come from, and what to double-check.' }) +
@@ -363,6 +524,9 @@ function renderAbout() {
    <h2>Which price you see</h2><p>The headline price is the <strong>lowest in-stock price</strong> across all stores. If no store has it in stock, it shows the last listed price and is marked out of stock. B.TECH listings from marketplace sellers say who the seller is.</p>
    <h2>How specs are worked out</h2><p>Specs are read from product names, such as “Bosch Refrigerator 522 Liter No Frost Stainless”. If a name doesn't mention something, that spec is left blank, or counted as “No” for yes/no filters. So a product may have a feature its name doesn't state. Some fridge layouts come from the maker's model series: Bosch <strong>KDN</strong> is top-freezer, <strong>KGN</strong> is bottom-freezer, LG <strong>GC-B257</strong> is side-by-side.</p>
    <h2>Comparing</h2><ul><li>You can compare 2 to 4 products of the same type.</li><li>The table shows each store's price for each product, and which store is cheapest.</li><li>The green dot marks the lowest price, the biggest discount, and the largest capacity, screen or power in a row.</li><li>Use “Copy link to this comparison” to send it to someone.</li></ul>
+   <h2>Popular choices and top picks</h2><p>Each appliance page has one-tap choices such as <em>Top freezer</em>, <em>350–450 L</em>, <em>Half automatic</em> or <em>65"</em>. Your filters are kept in the page address, so you can bookmark or send the link. Top picks are worked out from whatever matches your filters: the lowest price; the best value (the cheapest with at least the typical capacity or size); the model sold by the most stores; the biggest saving between stores; and the top of the range.</p>
+   <p>Where a fridge name doesn't state its layout, it is taken from well-known Egyptian top-freezer model series (such as Sharp SJ, Tornado RF, Toshiba GR and Fresh FNT); otherwise it shows as “Not stated”. Washers are handled the same way for front or top loading.</p>
+   <h2>Home plan</h2><p>Tap the house button on any product to add it to your home plan. The plan shows the cheapest store for each item, your total, and which stores carry everything. The budget, mid-range and premium kits are starting points picked automatically from in-stock models; swap anything you like.</p>
    <h2>Before you buy</h2><p>Prices and stock change daily, and installation, delivery and warranty differ by store. Always confirm on the store's own page.</p></div></section>`;
 }
 function renderNotFound() { app.innerHTML = pageHead({ title: 'Page not found', sub: 'That page doesn\'t exist. Pick a department instead.' }) + `<section class="sec"><div class="wrap">${deptTiles()}</div></section>`; }
@@ -382,6 +546,7 @@ function route() {
   else if (a === 'c' && typeBySlug(b)) renderCatalog(typeBySlug(b), q);
   else if (a === 'p') renderProduct(b);
   else if (a === 'stores') renderStores();
+  else if (a === 'plan') renderPlan(b ? b.split(',') : null);
   else if (a === 'st' && ST[b]) renderStore(b, q);
   else if (a === 'brands') renderBrands();
   else if (a === 'b' && brandBySlug(b)) renderBrand(brandBySlug(b));
@@ -396,7 +561,7 @@ function route() {
   route._last = a + ':' + b;
   if (!keepScroll) window.scrollTo(0, 0);
   renderTray(); reveal();
-  const titles = { '': 'Home appliance prices, side by side', departments: 'Departments', deals: 'Best deals', brands: 'Brands', about: 'How it works', compare: 'Compare', stores: 'Stores' };
+  const titles = { '': 'Home appliance prices, side by side', departments: 'Departments', deals: 'Best deals', brands: 'Brands', about: 'How it works', compare: 'Compare', stores: 'Stores', plan: 'Home plan' };
   document.title = (a === 'c' && typeBySlug(b) ? plural(typeBySlug(b)) : a === 'd' && grpBySlug(b) ? grpBySlug(b) : a === 's' ? 'Search: ' + (b || '') : a === 'p' && byId[b] ? byId[b].n : a === 'st' && ST[b] ? ST[b].name : a === 'b' && brandBySlug(b) ? brandBySlug(b) : titles[a] || 'Appliance Compare') + ' · Appliance Compare';
 }
 let io;
@@ -412,6 +577,10 @@ function reveal() {
 document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.cmp) { toggleCmp(t.dataset.cmp); return; }
+  if (t.dataset.plan) { e.preventDefault(); togglePlan(t.dataset.plan); if (location.hash.startsWith('#/plan')) renderPlan(); return; }
+  if (t.dataset.kit) { applyKit(t.dataset.kit); return; }
+  if (t.id === 'planclear') { PLAN = []; savePlan(); renderPlan(); return; }
+  if (t.dataset.pre != null && $('presets')) { const [, sel] = $('presets')._ps[+t.dataset.pre]; if (presetOn(sel)) Object.keys(sel).forEach(k => delete C.f[k]); else Object.entries(sel).forEach(([k, v]) => C.f[k] = v instanceof Set ? new Set(v) : v === true ? true : { ...v }); C.lim = 60; renderFilters(); renderResults(); return; }
   if (t.dataset.rm) { CMP = CMP.filter(x => x !== t.dataset.rm); saveCmp(); if (location.hash.startsWith('#/compare')) { location.hash = '#/compare' + (CMP.length ? '/' + CMP.join(',') : ''); } return; }
   if (t.id === 'moreb') { C.lim += 60; renderResults(); return; }
   if (t.dataset.store && $('filters')) { const x = t.dataset.store; C.stores.has(x) ? C.stores.delete(x) : C.stores.add(x); C.lim = 60; renderFilters(); renderResults(); return; }
@@ -446,7 +615,7 @@ fetch('data/products.json').then(r => r.json()).then(D => {
   P.forEach(p => { byId[p.id] = p; (byType[p.t] = byType[p.t] || []).push(p); });
   Object.keys(byType).forEach(t => TSLUG[t] = slug(t)); Object.keys(GROUPS).forEach(g => GSLUG[g] = slug(g));
   const bc = {}; P.forEach(p => bc[p.b] = (bc[p.b] || 0) + 1); BRANDS = Object.entries(bc).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  CMP = CMP.map(String).filter(i => byId[i]);
+  CMP = CMP.map(String).filter(i => byId[i]); PLAN = PLAN.map(String).filter(i => byId[i]); savePlan();
   const hs = document.querySelector('#hsearch input'); if (hs) hs.placeholder = `Search ${fmt(P.length)} products, brands, model codes`;
   $('fstores').innerHTML = Object.keys(ST).map(s => `<a href="#/st/${s}">${esc(ST[s].name)}</a>`).join('');
   $('fupd').textContent = `Prices in EGP, collected on ${dateTxt()}.`;
