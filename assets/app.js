@@ -18,7 +18,12 @@ const plural = t => /s$|&|care$|Other$/.test(t) ? t : t + 's';
 const unit = k => { const m = k.match(/\(([^)]+)\)/); return m ? m[1] : k; };
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
 
-let ST = {}, UPD = '';
+let ST = {}, UPD = '', HIST = null;
+let WATCH = store.get('ac-watch', {});
+const saveWatch = () => store.set('ac-watch', WATCH);
+const hdate = i => HIST ? new Date(HIST.dates[i] + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+function histOf(id) { return HIST && HIST.h[id] || null; }
+function dropOf(p) { const h = histOf(p.id), L = HIST ? HIST.dates.length - 1 : -1; if (!h || h.length < 2 || L < 1) return null; const a = h[h.length - 1], b = h[h.length - 2]; if (a[0] !== L || a[1] >= b[1]) return null; return { from: b[1], to: a[1], pct: Math.round((b[1] - a[1]) / b[1] * 100), since: b[0] }; }
 let P = [], byId = {}, byType = {}, GROUPS = {}, KEY = {}, TSLUG = {}, GSLUG = {}, BRANDS = [];
 let CMP = store.get('ac-cmp', []);
 let PLAN = store.get('ac-plan', []);
@@ -77,9 +82,9 @@ function card(p) {
   const on = CMP.includes(p.id), d = disc(p), best = p.of[0], n = p.of.length, g = gap(p), oos = !inStock(p);
   return `<article class="card${on ? ' sel' : ''}">
    <button class="pbtn${PLAN.includes(p.id) ? ' on' : ''}" data-plan="${p.id}" title="${PLAN.includes(p.id) ? 'In your home plan' : 'Add to home plan'}" aria-label="Add to home plan"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M12 13v5M9.5 15.5h5"/></svg></button>
-   <a class="pic" href="#/p/${p.id}" aria-label="${esc(p.n)}"><img src="${img(p)}" alt="" loading="lazy" width="160" height="160">${d >= 1 ? `<span class="off">−${d}%</span>` : ''}${n > 1 ? `<span class="fdl">${n} stores</span>` : ''}</a>
+   <a class="pic" href="#/p/${p.id}" aria-label="${esc(p.n)}"><img src="${img(p)}" alt="" loading="lazy" width="160" height="160">${d >= 1 ? `<span class="off">−${d}%</span>` : ''}${n > 1 ? `<span class="fdl">${n} stores</span>` : ''}${dropOf(p) ? `<span class="drp">↓ ${dropOf(p).pct}% since ${hdate(dropOf(p).since)}</span>` : ''}</a>
    <div class="cb"><div class="brand">${esc(p.b)}</div><a class="nm" href="#/p/${p.id}">${esc(p.n)}</a>
-   <div class="price"><strong>${p.p ? fmt(p.p) + '<small>EGP</small>' : 'Price on request'}</strong>${p.o && p.o > p.p ? `<s>${fmt(p.o)}</s>` : ''}</div>
+   <div class="price"><strong>${p.p ? fmt(p.p) + '<small>EGP</small>' : 'Price on request'}</strong>${p.o && p.o > p.p ? `<s>${fmt(p.o)}</s>` : ''}${gpBadge(p)}</div>
    <div class="at${oos ? ' oos' : ''}">${sdot(best.s)}${oos ? 'Out of stock · ' : n > 1 ? 'Cheapest at ' : 'At '}<b>${esc(sname(best.s))}</b>${g ? `<span class="sv">save ${fmt(g)}</span>` : ''}</div>
    <div class="specs">${specChips(p, 3)}</div>
    <div class="ca"><a href="${esc(ourl(best))}" target="_blank" rel="noopener">Buy at ${esc(sname(best.s))}</a><button class="cmpb${on ? ' on' : ''}" data-cmp="${p.id}">${on ? '✓ Added' : '+ Compare'}</button></div></div></article>`;
@@ -155,7 +160,7 @@ function renderHome() {
    <div class="sh rv"><div><h2 class="display">Same model, different price</h2><p>The biggest gap between stores in each appliance type, counting in-stock offers only.</p></div><a class="more" href="#/deals">See all ${fmt(gaps.length)} →</a></div>
    <div class="rail rv">${topGaps.map(card).join('')}</div>
   </div></section>
-  <section class="sec" style="padding-top:0"><div class="wrap"><div class="cta night rv planc"><div><h2 class="display">Furnishing a new home?</h2><p>Start from a budget, mid-range or premium kit of the essentials, swap what you like, and see your total at the cheapest stores.</p></div><div class="kmini">${Object.keys(TIER).map(k => `<a href="#/plan" class="km"><span>${TIER[k][1]}</span><b>${fmtK(kitFor(k).reduce((a, p) => a + p.p, 0))}</b></a>`).join('')}</div><a class="btn" href="#/plan">Plan my home</a></div></div></section>
+  <section class="sec" style="padding-top:0"><div class="wrap"><div class="cta night rv planc"><div><h2 class="display">Furnishing a new home?</h2><p>Start from a budget, mid-range or premium kit of the essentials, swap what you like, and see your total at the cheapest stores.</p></div><div class="kmini">${Object.keys(TIER).map(k => `<a href="#/plan" class="km"><span>${TIER[k][1]}</span><b>${fmtK(kitFor(k).reduce((a, p) => a + p.p, 0))}</b></a>`).join('')}</div><div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn" href="#/guide">Help me choose</a><a class="btn ghost" href="#/plan" style="color:var(--nightink);border-color:#3a414a">Plan my home</a></div></div></div></section>
   <section class="sec" style="padding-top:0"><div class="wrap">
    <div class="sh rv"><div><h2 class="display">Shop by department</h2><p>Each type has its own filters: doors and layout for fridges, panel type for TVs, basket size for air fryers.</p></div><a class="more" href="#/departments">All departments →</a></div>
    ${deptTiles()}
@@ -213,6 +218,7 @@ function renderBrand(b) {
     `<section class="sec" style="padding-top:30px"><div class="wrap"><p class="note" style="margin:0 0 16px">Tap a type above to filter and compare ${esc(b)} models with the type's own specs.</p><div class="grid">${rows.slice(0, 240).map(card).join('')}</div>${rows.length > 240 ? '<p class="note">Showing 240. Pick a type above to filter the rest.</p>' : ''}</div></section>`;
 }
 function renderDeals(q) {
+  if (q.get('m') === 'drops') return renderDrops(q);
   const g = q.get('d'), m = q.get('m') === 'disc' ? 'disc' : 'gap';
   const all = m === 'gap' ? P.filter(p => gapPct(p) >= 5) : P.filter(p => p.p && disc(p) >= 20 && inStock(p));
   const val = m === 'gap' ? gapPct : disc;
@@ -220,9 +226,16 @@ function renderDeals(q) {
   const qs = (x, mm) => `#/deals?m=${mm}${x ? '&d=' + encodeURIComponent(x) : ''}`;
   app.innerHTML = pageHead({ crumbs: [[null, 'Deals']], title: m === 'gap' ? 'Same model, cheaper elsewhere' : 'Biggest discounts',
     sub: m === 'gap' ? `${fmt(all.length)} models where one store is at least 5% cheaper than another for the same in-stock product. Card prices are the cheapest store.` : `${fmt(all.length)} in-stock products at least 20% below the store's own old price.`,
-    sibs: `<div class="sibs"><a class="sib${m === 'gap' ? ' on' : ''}" href="${qs(g, 'gap')}">Price gaps between stores</a><a class="sib${m === 'disc' ? ' on' : ''}" href="${qs(g, 'disc')}">Store discounts</a></div>
+    sibs: `<div class="sibs"><a class="sib${m === 'gap' ? ' on' : ''}" href="${qs(g, 'gap')}">Price gaps between stores</a><a class="sib" href="#/deals?m=drops">Price drops</a><a class="sib${m === 'disc' ? ' on' : ''}" href="${qs(g, 'disc')}">Store discounts</a></div>
     <div class="sibs" style="margin-top:8px"><a class="sib${!g ? ' on' : ''}" href="${qs(null, m)}">All<small>${fmt(all.length)}</small></a>${Object.keys(GROUPS).map(x => { const n = all.filter(p => groupOf(p.t) === x).length; return n ? `<a class="sib${g === x ? ' on' : ''}" href="${qs(x, m)}">${esc(x)}<small>${fmt(n)}</small></a>` : ''; }).join('')}</div>` }) +
     `<section class="sec" style="padding-top:30px"><div class="wrap"><div class="grid">${rows.slice(0, 240).map(card).join('')}</div>${rows.length > 240 ? '<p class="note">Showing the top 240. Pick a department above to see more.</p>' : ''}</div></section>`;
+}
+function renderDrops() {
+  const rows = P.filter(dropOf).sort((a, b) => dropOf(b).pct - dropOf(a).pct);
+  const n = HIST ? HIST.dates.length : 0;
+  app.innerHTML = pageHead({ crumbs: [['#/deals', 'Deals'], [null, 'Price drops']], title: 'Price drops', sub: n > 1 ? `${fmt(rows.length)} products got cheaper since the previous check (${hdate(n - 2)} → ${hdate(n - 1)}). Prices are the cheapest in-stock store.` : 'We re-check every store regularly. Products that get cheaper will appear here after the next check.',
+    sibs: `<div class="sibs"><a class="sib" href="#/deals?m=gap">Price gaps between stores</a><a class="sib on" href="#/deals?m=drops">Price drops</a><a class="sib" href="#/deals?m=disc">Store discounts</a></div>` }) +
+    `<section class="sec" style="padding-top:30px"><div class="wrap">${rows.length ? `<div class="grid">${rows.slice(0, 240).map(card).join('')}</div>` : `<div class="empty">No price drops to show yet. Tracking started ${HIST ? new Date(HIST.dates[0] + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) : ''}. Meanwhile, see <a href="#/deals?m=gap">where the same model is cheaper elsewhere</a>.</div>`}</div></section>`;
 }
 function renderStores() {
   app.innerHTML = pageHead({ crumbs: [[null, 'Stores']], title: 'The stores', sub: `Prices from ${Object.keys(ST).length} Egyptian retailers, collected on ${dateTxt()}. The bar shows how often each store has the lowest in-stock price for models that more than one store sells.` }) +
@@ -261,7 +274,7 @@ function catQS() {
   if (C.brands.size) q.set('b', [...C.brands].join('|'));
   if (C.stores.size) q.set('st', [...C.stores].join('|'));
   if (C.pmin != null) q.set('pmin', C.pmin); if (C.pmax != null) q.set('pmax', C.pmax);
-  if (!C.instock) q.set('all', '1'); if (C.multi) q.set('multi', '1');
+  if (!C.instock) q.set('all', '1'); if (C.multi) q.set('multi', '1'); if (C.great) q.set('great', '1');
   if (C.q) q.set('q', C.q); if (C.sort !== 'pa') q.set('sort', C.sort);
   for (const [k, v] of Object.entries(C.f)) {
     if (v == null) continue;
@@ -273,11 +286,11 @@ function catQS() {
 }
 function syncURL() { const u = '#/c/' + TSLUG[C.type] + (catQS() ? '?' + catQS() : ''); if (location.hash !== u) history.replaceState(null, '', u); }
 function readState(q) {
-  Object.assign(C, { brands: new Set(), stores: new Set(), f: {}, pmin: null, pmax: null, instock: true, multi: false, q: '', sort: 'pa' });
+  Object.assign(C, { brands: new Set(), stores: new Set(), f: {}, pmin: null, pmax: null, instock: true, multi: false, great: false, q: '', sort: 'pa' });
   if (q.get('b')) C.brands = new Set(q.get('b').split('|'));
   if (q.get('st')) C.stores = new Set(q.get('st').split('|').filter(s => ST[s]));
   if (q.get('pmin')) C.pmin = +q.get('pmin'); if (q.get('pmax')) C.pmax = +q.get('pmax');
-  if (q.get('all')) C.instock = false; if (q.get('multi')) C.multi = true;
+  if (q.get('all')) C.instock = false; if (q.get('multi')) C.multi = true; C.great = !!q.get('great');
   if (q.get('q')) C.q = q.get('q'); if (q.get('sort')) C.sort = q.get('sort');
   for (const [k, v] of q.entries()) {
     if (k.startsWith('f.')) { const key = k.slice(2), m = C.meta.find(x => x.k === key); if (!m) continue;
@@ -346,6 +359,7 @@ function match(p, skip) {
   if (skip !== 'store' && C.stores.size && !p.of.some(o => C.stores.has(o.s) && (!C.instock || o.in !== 0))) return false;
   if (C.instock && !inStock(p)) return false;
   if (C.multi && live(p).length < 2) return false;
+  if (C.great && !(p.gp && p.gp.lab === 'great')) return false;
   if (C.q) { const h = (p.n + ' ' + p.b + ' ' + (p.m || '')).toLowerCase(); if (!C.q.toLowerCase().split(/\s+/).every(t => h.includes(t))) return false; }
   for (const m of C.meta) {
     if (m.k === skip) continue; const sel = C.f[m.k]; if (sel == null) continue; const v = p.f[m.k];
@@ -366,7 +380,7 @@ function renderCatalog(t, q) {
    <div class="presets" id="presets"></div><div class="stats" id="stats"></div><div class="picks" id="picks"></div><div class="strip" id="strip"></div>
    <div class="tools"><span class="cnt" id="cnt"></span><button class="fbtn" id="fbtn">Filters</button>
    <input class="sel" id="cq" type="search" placeholder="Search in ${esc(t==='TV'?'TVs':plural(t).toLowerCase())}" value="${esc(C.q)}" style="width:min(240px,100%)" aria-label="Search in this type">
-   <select class="sel" id="sort" aria-label="Sort">${[['pa', 'Price: low to high'], ['pd', 'Price: high to low'], ['ga', 'Biggest gap between stores'], ['da', 'Biggest discount'], ['ka', KEY[t] ? 'Largest ' + KEY[t].replace(/ \(.*\)/, '').toLowerCase() : 'Key spec'], ['br', 'Brand A–Z']].map(([v, l]) => `<option value="${v}"${C.sort === v ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
+   <select class="sel" id="sort" aria-label="Sort">${[['pa', 'Price: low to high'], ['pd', 'Price: high to low'], ['gv', 'Best price vs similar models'], ['ga', 'Biggest gap between stores'], ['da', 'Biggest discount'], ['ka', KEY[t] ? 'Largest ' + KEY[t].replace(/ \(.*\)/, '').toLowerCase() : 'Key spec'], ['br', 'Brand A–Z']].map(([v, l]) => `<option value="${v}"${C.sort === v ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
    <div class="grid" id="grid"></div></section></div></div>`;
   renderFilters(); renderResults();
 }
@@ -381,7 +395,8 @@ function renderFilters() {
   let h = `<div class="fh"><h2>Filters</h2><button class="link" id="reset">Reset all</button></div>
   <div class="fs"><h3>Store</h3><div class="opts">${Object.keys(ST).map(s => `<button class="opt${C.stores.has(s) ? ' on' : ''}" data-store="${s}" ${!sc[s] && !C.stores.has(s) ? 'disabled' : ''}>${sdot(s)}${esc(ST[s].name)} <small>${sc[s] || 0}</small></button>`).join('')}</div>
   <label class="tog"><input type="checkbox" id="instock" ${C.instock ? 'checked' : ''}> In stock only</label>
-  <label class="tog"><input type="checkbox" id="multi" ${C.multi ? 'checked' : ''}> Sold by 2+ stores (price-matched)</label></div>
+  <label class="tog"><input type="checkbox" id="multi" ${C.multi ? 'checked' : ''}> Sold by 2+ stores (price-matched)</label>
+  <label class="tog"><input type="checkbox" id="great" ${C.great ? 'checked' : ''}> Great price vs similar models</label></div>
   <div class="fs"><h3>Brand</h3><div class="opts">${allB.map(b => `<button class="opt${C.brands.has(b) ? ' on' : ''}" data-brand="${esc(b)}" ${!bc[b] && !C.brands.has(b) ? 'disabled' : ''}>${esc(b)} <small>${bc[b] || 0}</small></button>`).join('')}</div></div>
   <div class="fs"><h3>Price (EGP)</h3><div class="rng"><select id="pmin" aria-label="Minimum price"><option value="">Any</option>${steps.map(v => `<option value="${v}" ${C.pmin === v ? 'selected' : ''}>${fmt(v)}</option>`).join('')}</select>–<select id="pmax" aria-label="Maximum price"><option value="">Any</option>${steps.map(v => `<option value="${v}" ${C.pmax === v ? 'selected' : ''}>${fmt(v)}</option>`).join('')}</select></div>
   ${BUDGET ? (() => { const rem = budgetLeft(C.type); return rem > 0 ? `<label class="tog"><input type="checkbox" id="fitb" data-rem="${Math.floor(rem)}" ${C.pmax === Math.floor(rem) ? 'checked' : ''}> Fits my budget <small>(≤ ${fmt(Math.floor(rem))})</small></label>` : `<p class="note" style="margin:6px 0 0">Your home plan is already at or over budget.</p>`; })() : ''}</div>`;
@@ -395,7 +410,7 @@ function renderFilters() {
 }
 function renderResults() {
   const kv = p => KEY[C.type] ? p.f[KEY[C.type]] : null, s = C.sort;
-  const rows = byType[C.type].filter(p => match(p)).sort((a, b) => s === 'pa' ? (a.p ?? 1e12) - (b.p ?? 1e12) : s === 'pd' ? (b.p ?? -1) - (a.p ?? -1) : s === 'ga' ? gapPct(b) - gapPct(a) || gap(b) - gap(a) : s === 'da' ? disc(b) - disc(a) : s === 'ka' ? (kv(b) ?? -1) - (kv(a) ?? -1) : a.b.localeCompare(b.b));
+  const rows = byType[C.type].filter(p => match(p)).sort((a, b) => s === 'pa' ? (a.p ?? 1e12) - (b.p ?? 1e12) : s === 'pd' ? (b.p ?? -1) - (a.p ?? -1) : s === 'ga' ? gapPct(b) - gapPct(a) || gap(b) - gap(a) : s === 'gv' ? (a.gp ? a.gp.r : 9) - (b.gp ? b.gp.r : 9) : s === 'da' ? disc(b) - disc(a) : s === 'ka' ? (kv(b) ?? -1) - (kv(a) ?? -1) : a.b.localeCompare(b.b));
   const pr = rows.map(p => p.p).filter(v => v != null).sort((a, b) => a - b), med = pr.length ? pr[Math.floor(pr.length / 2)] : null;
   $('stats').innerHTML = `<div style="--c:${GC[0]}"><span>Matching</span><strong>${rows.length}</strong></div><div style="--c:${GC[1]}"><span>Brands</span><strong>${new Set(rows.map(p => p.b)).size}</strong></div><div style="--c:${GC[2]}"><span>Price range (EGP)</span><strong>${pr.length ? fmtK(pr[0]) + '–' + fmtK(pr[pr.length - 1]) : '—'}</strong></div><div style="--c:${GC[3]}"><span>Median price (EGP)</span><strong>${med ? fmt(med) : '—'}</strong></div>`;
   renderStrip(rows); renderPicks(rows); syncURL();
@@ -425,9 +440,12 @@ function renderProduct(id) {
   <div><div class="brand" style="font-size:15px">${esc(p.b)} · ${esc(p.t)}</div><h1>${esc(p.n)}</h1>
    <div class="pbox"><div class="price"><strong>${fmt(p.p)}<small>EGP</small></strong>${p.o && p.o > p.p ? `<s>${fmt(p.o)} EGP</s>` : ''}</div>
     <p class="bestat">${inStock(p) ? `${L.length > 1 ? 'Lowest price, at' : 'At'} <b>${esc(sname(best.s))}</b>${sv ? ` · <span class="save">${fmt(sv)} EGP less than the dearest store</span>` : ''}` : 'Out of stock everywhere we checked; last listed price shown.'}</p>
-    <div class="acts"><a class="btn green" href="${esc(ourl(best))}" target="_blank" rel="noopener">Buy at ${esc(sname(best.s))} ↗</a><button class="btn ghost cmpb${on ? ' on' : ''}" data-cmp="${p.id}" data-big="1" style="border-radius:12px;min-height:48px;font-size:15px">${on ? '✓ Added' : 'Add to compare'}</button><button class="btn ghost pbig${PLAN.includes(p.id) ? ' on' : ''}" data-plan="${p.id}" data-big="1">${PLAN.includes(p.id) ? '✓ In your home plan' : 'Add to home plan'}</button></div></div>
+    <div class="acts"><a class="btn green" href="${esc(ourl(best))}" target="_blank" rel="noopener">Buy at ${esc(sname(best.s))} ↗</a><button class="btn ghost cmpb${on ? ' on' : ''}" data-cmp="${p.id}" data-big="1" style="border-radius:12px;min-height:48px;font-size:15px">${on ? '✓ Added' : 'Add to compare'}</button><button class="btn ghost pbig${PLAN.includes(p.id) ? ' on' : ''}" data-plan="${p.id}" data-big="1">${PLAN.includes(p.id) ? '✓ In your home plan' : 'Add to home plan'}</button></div>
+    <div class="watch">${WATCH[p.id] ? `<span>👁 Watching since ${fmt(WATCH[p.id].p)} EGP${WATCH[p.id].t ? ` · alert at ${fmt(WATCH[p.id].t)}` : ''}</span><span class="wtg"><input id="wt" inputmode="numeric" placeholder="Alert price (optional)" aria-label="Alert price in EGP"><button class="link" data-wtarget="${p.id}">Set</button></span><button class="link" data-unwatch="${p.id}">Stop watching</button>` : `<button class="link" data-watch="${p.id}">👁 Watch this price</button><span class="note">We'll flag it on your next visit if it drops.</span>`}</div></div>
+   ${p.gp ? `<div class="gpbox ${p.gp.lab}"><b>${p.gp.lab === 'great' ? 'Great price' : p.gp.lab === 'pricey' ? 'Priced high' : 'Fair price'}</b><span>${p.gp.lab === 'fair' ? `Within the usual range` : `${Math.abs(Math.round((1 - p.gp.r) * 100))}% ${p.gp.r < 1 ? 'below' : 'above'} the typical price`} of <a href="${peerLink(p)}">${p.gp.n} similar ${esc(peerLabel(p))}</a> (typical ${fmt(p.gp.med)} EGP).</span><i class="gpbar"><u style="left:${Math.max(2, Math.min(98, 50 + (p.gp.r - 1) * 100))}%"></u></i></div>` : ''}
    <h2 class="h3">Prices at ${p.of.length} store${p.of.length > 1 ? 's' : ''}</h2>
    <table class="spec offers"><tbody>${offers}</tbody></table>
+   ${histBlock(p)}
    <h2 class="h3">Specs</h2>
    <table class="spec"><tbody>${Object.entries(p.f).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}${p.m ? `<tr><th>Model code</th><td>${esc(p.m.split(' ')[0])}</td></tr>` : ''}</tbody></table>
    <p class="note">Specs are read from the product names the stores list. Prices were collected on ${dateTxt()}; confirm on the store's page before buying.</p></div></div>
@@ -435,6 +453,41 @@ function renderProduct(id) {
   <div class="rail" style="margin-bottom:40px">${sim.map(card).join('')}</div></div>`;
   if (p.im && p.th) { const hi = new Image(); hi.onload = () => { const g2 = $('gimg'); if (g2) g2.src = hi.src; }; hi.src = p.im; }
   else if (p.im && /mafrservices/.test(p.im)) { const g2 = $('gimg'); g2.src = p.im; }
+}
+
+function inflated(p, o) {
+  if (!o.o) return false; const L = live(p).map(x => x.p); const h = histOf(p.id) || [];
+  const seen = Math.max(...L, ...h.map(x => x[1]), 0);
+  return L.length >= 2 && o.o > seen * 1.2;
+}
+function histBlock(p) {
+  const h = histOf(p.id);
+  const infl = p.of.filter(o => o.in !== 0 && inflated(p, o));
+  const warn = infl.length ? `<p class="infl">⚠ ${infl.map(o => esc(sname(o.s))).join(', ')} show${infl.length > 1 ? '' : 's'} a “was” price of ${infl.map(o => fmt(o.o)).join(' / ')} EGP, more than 20% above anything any store is charging. Treat that discount with caution.</p>` : '';
+  if (!HIST) return warn;
+  if (!h || h.length < 2) return `<h2 class="h3">Price history</h2><p class="note" style="margin:4px 0 0">Tracking started ${new Date(HIST.dates[(h && h[0] ? h[0][0] : 0)] + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}. Price changes will show here as we re-check the stores.</p>${warn}`;
+  const n = HIST.dates.length, pts = []; let cur = h[0];
+  for (let i = h[0][0], k = 0; i < n; i++) { while (k + 1 < h.length && h[k + 1][0] <= i) k++; cur = h[k]; pts.push([i, cur[1], cur[2]]); }
+  const ps = pts.map(x => x[1]), lo = Math.min(...ps), hi = Math.max(...ps), W = 520, Hh = 120, pad = 6;
+  const X = i => pad + (i - pts[0][0]) / Math.max(1, n - 1 - pts[0][0]) * (W - 2 * pad), Y = v => hi === lo ? Hh / 2 : pad + (hi - v) / (hi - lo) * (Hh - 2 * pad);
+  let d = ''; pts.forEach((q, j) => { d += (j ? ` L${X(q[0])},${Y(pts[j - 1][1])} L${X(q[0])},${Y(q[1])}` : `M${X(q[0])},${Y(q[1])}`); });
+  const now = ps[ps.length - 1];
+  return `<h2 class="h3">Price history</h2><div class="hist"><svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" role="img" aria-label="Lowest price over time"><path d="${d}" fill="none" stroke="var(--acc)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>${pts.map(q => `<circle cx="${X(q[0])}" cy="${Y(q[1])}" r="3" fill="var(--acc)"><title>${hdate(q[0])}: ${fmt(q[1])} EGP at ${sname(q[2])}</title></circle>`).join('')}</svg>
+   <div class="hx"><span>${hdate(pts[0][0])}</span><span>${hdate(n - 1)}</span></div>
+   <div class="hstat"><span>Lowest <b>${fmt(lo)}</b></span><span>Highest <b>${fmt(hi)}</b></span><span>${now <= lo ? '<b class="ok">At its lowest tracked price</b>' : `<b>${fmt(now - lo)}</b> above its lowest`}</span></div></div>${warn}`;
+}
+function renderWatch() {
+  const ids = Object.keys(WATCH).filter(i => byId[i]);
+  const rows = ids.map(i => ({ p: byId[i], w: WATCH[i] })).sort((a, b) => (a.p.p - a.w.p) / a.w.p - (b.p.p - b.w.p) / b.w.p);
+  app.innerHTML = pageHead({ crumbs: [[null, 'Watchlist']], title: 'Your watchlist', sub: 'Prices you are watching, compared with the price when you started. Saved in this browser; drops are flagged when you visit.' }) +
+   `<section class="sec" style="padding-top:30px"><div class="wrap">${rows.length ? `<div class="wl">${rows.map(({ p, w }) => { const ch = p.p - w.p; return `<div class="prow"><a href="#/p/${p.id}"><img src="${img(p)}" alt="" loading="lazy"></a><div class="pinfo"><small>${esc(p.t)} · ${esc(p.b)}</small><a href="#/p/${p.id}">${esc(p.n)}</a><span class="at">Watching since ${new Date(w.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} at ${fmt(w.p)} EGP${w.t ? ` · alert at ${fmt(w.t)}` : ''}</span></div><div class="pprice"><strong>${fmt(p.p)}</strong><small>EGP</small><em class="${ch < 0 ? 'ok' : ch > 0 ? 'bad' : ''}">${ch < 0 ? '↓ ' + fmt(-ch) + ' cheaper' : ch > 0 ? '↑ ' + fmt(ch) + ' dearer' : 'No change'}</em><div><button class="link" data-unwatch="${p.id}">Stop</button></div></div></div>`; }).join('')}</div>` : `<div class="empty" style="text-align:left">You're not watching anything yet. Open any product and tap <b>👁 Watch this price</b>.</div>`}</div></section>`;
+}
+function watchAlerts() {
+  const hits = Object.entries(WATCH).filter(([i, w]) => byId[i] && (byId[i].p < w.p * 0.995 || (w.t && byId[i].p <= w.t)) && !w.seen?.includes?.(byId[i].p));
+  if (!hits.length) return;
+  hits.forEach(([i, w]) => { w.seen = (w.seen || []).concat(byId[i].p); }); saveWatch();
+  setTimeout(() => toast(`${hits.length} watched product${hits.length > 1 ? 's are' : ' is'} cheaper now. Open your watchlist to see.`), 1200);
+  const c = $('wcount'); if (c) c.textContent = hits.length;
 }
 
 /* ---------- compare ---------- */
@@ -513,6 +566,39 @@ function similar(p, loose) {
   const known = c.filter(x => brandCount(p.t, x.b) >= 3);
   return (known.length ? known : c).sort((a, b) => a.p - b.p);
 }
+/* good-price: compare with similar in-stock models */
+const BUCKET = { 'Screen (inch)': 0, 'Capacity (HP)': 0, 'Capacity (L)': 50, 'Wash capacity (kg)': 1, 'Dry capacity (kg)': 1, 'Place settings': 2, 'Width (cm)': 0, 'Burners': 0, 'Tank / flow (L)': 10, 'Taps': 0, 'Size (inch)': 2, 'Stages': 1 };
+function peerSpec(p) {
+  const key = KEY[p.t], kv = p.f[key], spec = {};
+  (CORE[p.t] || []).forEach(k => { const v = p.f[k]; if (v != null && v !== 'Not stated' && v !== 'No') spec['f.' + k] = v; });
+  if (typeof kv === 'number' && key in BUCKET) {
+    const b = BUCKET[key];
+    if (b === 0) spec['r.' + key] = [kv, kv];
+    else { const lo = Math.floor(kv / b) * b; spec['r.' + key] = [lo, lo + b - (b >= 1 ? 1 : 0.1)]; }
+  } else if (typeof kv === 'number') { const lo = kv * 0.85, hi = kv * 1.15; spec['r.' + key] = [Math.round(lo), Math.round(hi)]; }
+  return spec;
+}
+const specKey = (t, sp) => t + '|' + Object.entries(sp).map(([k, v]) => k + '=' + v).join('|');
+function computeGoodPrice() {
+  const groups = {};
+  P.forEach(p => { const key = KEY[p.t]; if (!(key in BUCKET) || typeof p.f[key] !== 'number' || /small appliance|Coffee|Iron|Kettle/.test(p.t)) return; const sp = peerSpec(p); p._sp = sp; const k = specKey(p.t, sp); (groups[k] = groups[k] || []).push(p); });
+  Object.values(groups).forEach(g => {
+    const pr = g.filter(p => p.p && inStock(p)).map(p => p.p).sort((a, b) => a - b);
+    if (pr.length < 8) return;
+    const med = pr[Math.floor(pr.length / 2)];
+    g.forEach(p => { if (!p.p) return; const r = p.p / med; p.gp = { r, n: pr.length, med, lab: r <= 0.8 ? 'great' : r >= 1.35 ? 'pricey' : 'fair' }; });
+  });
+}
+function peerLabel(p) {
+  const parts = []; const sp = p._sp || {};
+  Object.entries(sp).forEach(([k, v]) => { const key = k.slice(2); if (k.startsWith('f.')) parts.push(v === 'Yes' ? key.replace(/ \(.*\)/, '').toLowerCase() : String(v).toLowerCase()); else parts.push(v[0] === v[1] ? `${v[0]}${unit(key) !== key ? ' ' + unit(key) : ''}` : `${v[0]}–${v[1]}${unit(key) !== key ? ' ' + unit(key) : ''}`); });
+  return (parts.length ? parts.join(', ') + ' ' : '') + (p.t === 'TV' ? 'TVs' : plural(p.t).toLowerCase());
+}
+function peerLink(p) {
+  const q = new URLSearchParams(); Object.entries(p._sp || {}).forEach(([k, v]) => { if (k.startsWith('f.')) q.set(k, v); else q.set(k, v[0] + '~' + v[1]); });
+  q.set('sort', 'pa'); return '#/c/' + TSLUG[p.t] + '?' + q.toString();
+}
+const gpBadge = p => p.gp && p.gp.lab === 'great' ? `<span class="gpb" title="${Math.round((1 - p.gp.r) * 100)}% below the typical price of ${p.gp.n} similar models">Great price</span>` : '';
 function upgradeFor(p, room) {
   const key = KEY[p.t], kv = p.f[key], cats = CORE[p.t] || [];
   if (typeof kv !== 'number' || room <= 0) return null;
@@ -604,6 +690,79 @@ function renderPlan(ids) {
    <div class="kits">${kits}</div>${body}</div></section>`;
 }
 
+/* ---------- help me choose ---------- */
+let G = store.get('ac-guide', null) || { people: 4, tier: 'mid', need: ['Refrigerator', 'Washing machine', 'Cooker', 'TV', 'Air conditioner', 'Water heater', 'Microwave'],
+  rooms: [{ n: 'Living room', a: 24, sun: false }, { n: 'Bedroom', a: 14, sun: false }], tvd: 2.5, kitchen: 'free90', heat: 'electric', layout: 'any', load: 'front', dish: 'no' };
+const saveG = () => store.set('ac-guide', G);
+const hpFor = (a, sun) => { const x = a * (sun ? 1.25 : 1); return x <= 15 ? 1.5 : x <= 22 ? 2.25 : x <= 30 ? 3 : x <= 40 ? 4 : 5; };
+const HP_RANGE = { 1.5: [1.25, 1.5], 2.25: [2, 2.25], 3: [2.75, 3], 4: [4, 4.5], 5: [5, 5] };
+const tvFor = d => d < 1.5 ? [40, 43] : d < 2 ? [48, 50] : d < 2.5 ? [55, 55] : d < 3 ? [65, 65] : d < 3.5 ? [75, 77] : [80, 86];
+function guideNeeds() {
+  const n = G.people, out = [];
+  const cap = n <= 2 ? [300, 399] : n <= 4 ? [400, 499] : n <= 6 ? [500, 599] : [600, 1100];
+  const kg = n <= 2 ? [6, 7.5] : n <= 4 ? [8, 9] : n <= 6 ? [10, 11] : [12, 30];
+  const wh = n <= 2 ? [30, 40] : n <= 4 ? [45, 55] : [60, 100];
+  const add = (t, why, spec) => { if (G.need.includes(t)) out.push({ t, why, spec }); };
+  add('Refrigerator', `${cap[0]}–${cap[1] > 1000 ? '' : cap[1]} L suits ${n <= 2 ? '1–2 people' : n <= 4 ? 'a family of 3–4' : n <= 6 ? 'a family of 5–6' : '7 or more people'}${G.layout !== 'any' ? ', ' + G.layout.toLowerCase() : ''}, no frost`,
+    Object.assign({ 'r.Capacity (L)': cap, 'f.No frost': 'Yes' }, G.layout !== 'any' ? { 'f.Layout': G.layout } : {}));
+  add('Washing machine', `${kg[0]}–${kg[1] > 20 ? '+' : kg[1]} kg for ${n} ${n === 1 ? 'person' : 'people'}, ${G.load === 'half' ? 'half automatic (twin tub)' : (G.load === 'front' ? 'front' : 'top') + ' load, fully automatic'}`,
+    G.load === 'half' ? { 'r.Wash capacity (kg)': kg, 'f.Automation': 'Half automatic (twin tub)' } : { 'r.Wash capacity (kg)': kg, 'f.Loading': G.load === 'front' ? 'Front load' : 'Top load', 'f.Automation': 'Fully automatic' });
+  if (G.need.includes('Cooker')) {
+    if (G.kitchen === 'builtin') { out.push({ t: 'Hob', why: '90 cm built-in gas hob', spec: { 'f.Type': 'Gas', 'f.Width (cm)': 90 } }); out.push({ t: 'Built-in oven', why: '60 cm built-in oven', spec: { 'f.Width (cm)': 60 } }); }
+    else out.push({ t: 'Cooker', why: G.kitchen === 'free60' ? '60 cm freestanding cooker, 4 burners' : '90 cm freestanding cooker, 5 burners', spec: G.kitchen === 'free60' ? { 'f.Width (cm)': 60 } : { 'f.Width (cm)': 90, 'f.Burners': 5 } });
+  }
+  add('TV', `${tvFor(G.tvd)[0]}${tvFor(G.tvd)[1] !== tvFor(G.tvd)[0] ? '–' + tvFor(G.tvd)[1] : ''}" for sitting ${G.tvd} m away`, { 'r.Screen (inch)': tvFor(G.tvd) });
+  if (G.need.includes('Air conditioner')) G.rooms.filter(r => r.a > 0).forEach((r, i) => { const hp = hpFor(r.a, r.sun); out.push({ t: 'Air conditioner', why: `${hp} HP for the ${r.n.toLowerCase() || 'room'} (${r.a} m²${r.sun ? ', sunny or top floor' : ''})`, spec: { 'r.Capacity (HP)': HP_RANGE[hp] }, room: i }); });
+  add('Water heater', G.heat === 'gas' ? `Gas heater, ${n <= 2 ? '6' : '10'} L/min` : G.heat === 'instant' ? 'Instant electric heater' : `${wh[0]}–${wh[1]} L electric tank`,
+    G.heat === 'gas' ? { 'f.Type': 'Gas', 'r.Tank / flow (L)': n <= 2 ? [6, 6] : [10, 16] } : G.heat === 'instant' ? { 'f.Type': 'Instant electric' } : { 'f.Type': 'Electric tank', 'r.Tank / flow (L)': wh });
+  add('Microwave', n <= 2 ? '20–25 L microwave' : '25–34 L microwave', { 'r.Capacity (L)': n <= 2 ? [20, 25] : [25, 34] });
+  add('Dishwasher', n <= 2 ? 'Slim or 10–12 place settings' : n <= 4 ? '12–14 place settings' : '14+ place settings', { 'r.Place settings': n <= 2 ? [6, 12] : n <= 4 ? [12, 14] : [14, 17] });
+  add('Freezer', n <= 4 ? '150–250 L upright freezer' : '250 L+ upright freezer', { 'f.Type': 'Upright', 'r.Capacity (L)': n <= 4 ? [150, 250] : [250, 700] });
+  add('Dryer', `${kg[0] >= 10 ? '9–10' : '8–9'} kg dryer`, { 'r.Dry capacity (kg)': kg[0] >= 10 ? [9, 11] : [8, 9.5] });
+  add('Vacuum & floor care', 'Canister vacuum', { 'f.Type': 'Canister' });
+  add('Water dispenser', 'Hot & cold dispenser', {});
+  return out;
+}
+function specMatch(p, spec) { return Object.entries(spec).every(([k, v]) => { const key = k.slice(2), x = p.f[key]; if (k.startsWith('r.')) return typeof x === 'number' && x >= v[0] - 1e-9 && x <= v[1] + 1e-9; return x === v; }); }
+function specLink(t, spec) { const q = new URLSearchParams(); Object.entries(spec).forEach(([k, v]) => q.set(k, Array.isArray(v) ? v[0] + '~' + v[1] : v)); return '#/c/' + TSLUG[t] + (q.toString() ? '?' + q.toString() : ''); }
+function guidePicks(t, spec) {
+  const all = (byType[t] || []).filter(p => p.p && inStock(p) && specMatch(p, spec));
+  const known = all.filter(p => brandCount(t, p.b) >= 3); const pool = (known.length >= 4 ? known : all).sort((a, b) => a.p - b.p);
+  if (!pool.length) return { n: all.length, picks: [] };
+  const at = q => { const tgt = pool[Math.min(pool.length - 1, Math.floor(pool.length * q))].p; const near = pool.filter(p => Math.abs(p.p - tgt) <= tgt * 0.1); return near.filter(p => live(p).length > 1).sort((a, b) => (a.gp ? a.gp.r : 1) - (b.gp ? b.gp.r : 1))[0] || near[0]; };
+  const q = { budget: 0.12, mid: 0.5, premium: 0.85 }[G.tier];
+  const main = at(q), value = pool.filter(p => p.gp && p.gp.lab === 'great')[0] || pool[0], prem = at(Math.min(0.95, q + 0.3));
+  const picks = []; [[main, 'Our pick'], [value, 'Best value'], [prem, 'Step up']].forEach(([p, l]) => { if (p && !picks.some(x => x[0].id === p.id)) picks.push([p, l]); });
+  return { n: all.length, picks };
+}
+function renderGuide() {
+  const needs = guideNeeds();
+  const allT = ['Refrigerator', 'Washing machine', 'Cooker', 'TV', 'Air conditioner', 'Water heater', 'Microwave', 'Dishwasher', 'Freezer', 'Dryer', 'Vacuum & floor care', 'Water dispenser'];
+  const res = needs.map(nd => ({ ...nd, ...guidePicks(nd.t, nd.spec) }));
+  const total = res.reduce((a, r) => a + (r.picks[0] ? r.picks[0][0].p : 0), 0);
+  const opt = (name, val, cur, lab) => `<button class="pre${cur === val ? ' on' : ''}" data-g="${name}" data-v="${val}">${lab}</button>`;
+  app.innerHTML = pageHead({ crumbs: [[null, 'Help me choose']], title: 'Help me choose', sub: 'Tell us about your home. We work out the right size for each appliance and pick models from every store, at the level you choose.' }) +
+  `<section class="sec" style="padding-top:30px"><div class="wrap guide">
+   <div class="gq">
+    <div class="gs"><h3>How many people live at home?</h3><div class="opts">${[1, 2, 3, 4, 5, 6, 7].map(n => opt('people', n, G.people, n === 7 ? '7+' : n)).join('')}</div></div>
+    <div class="gs"><h3>Which appliances do you need?</h3><div class="opts">${allT.map(t => `<button class="pre${G.need.includes(t) ? ' on' : ''}" data-gneed="${t}">${t === 'TV' ? 'TV' : t === 'Vacuum & floor care' ? 'Vacuum' : t}</button>`).join('')}</div></div>
+    ${G.need.includes('Air conditioner') ? `<div class="gs"><h3>Rooms that need an AC</h3><p class="note">Room size in m² (length × width). Tick “sunny / top floor” for rooms that get direct sun or sit under the roof.</p>
+      ${G.rooms.map((r, i) => `<div class="room"><input data-room="${i}" data-k="n" value="${esc(r.n)}" aria-label="Room name"><input data-room="${i}" data-k="a" inputmode="decimal" value="${r.a}" aria-label="Room size in square metres"><span>m²</span><label class="tog"><input type="checkbox" data-room="${i}" data-k="sun" ${r.sun ? 'checked' : ''}> sunny / top floor</label><b>${hpFor(r.a, r.sun)} HP</b><button class="link" data-rmroom="${i}" aria-label="Remove room">×</button></div>`).join('')}
+      <button class="link" id="addroom">+ Add a room</button></div>` : ''}
+    ${G.need.includes('TV') ? `<div class="gs"><h3>How far do you sit from the TV?</h3><div class="opts">${[1.2, 1.8, 2.2, 2.7, 3.2, 3.8].map(d => opt('tvd', d, G.tvd, d + ' m')).join('')}</div></div>` : ''}
+    ${G.need.includes('Refrigerator') ? `<div class="gs"><h3>Fridge style</h3><div class="opts">${[['any', 'No preference'], ['Top freezer', 'Freezer on top'], ['Bottom freezer (combi)', 'Freezer at bottom'], ['Side-by-side', 'Side-by-side']].map(([v, l]) => opt('layout', v, G.layout, l)).join('')}</div></div>` : ''}
+    ${G.need.includes('Washing machine') ? `<div class="gs"><h3>Washing machine</h3><div class="opts">${[['front', 'Front load'], ['top', 'Top load automatic'], ['half', 'Half automatic (twin tub)']].map(([v, l]) => opt('load', v, G.load, l)).join('')}</div></div>` : ''}
+    ${G.need.includes('Cooker') ? `<div class="gs"><h3>Your kitchen</h3><div class="opts">${[['free90', '90 cm freestanding cooker'], ['free60', '60 cm freestanding cooker'], ['builtin', 'Built-in hob + oven']].map(([v, l]) => opt('kitchen', v, G.kitchen, l)).join('')}</div></div>` : ''}
+    ${G.need.includes('Water heater') ? `<div class="gs"><h3>Water heating</h3><div class="opts">${[['electric', 'Electric tank'], ['gas', 'Gas (natural or cylinder)'], ['instant', 'Instant electric']].map(([v, l]) => opt('heat', v, G.heat, l)).join('')}</div></div>` : ''}
+    <div class="gs"><h3>What level?</h3><div class="opts">${[['budget', 'Budget'], ['mid', 'Mid-range'], ['premium', 'Premium']].map(([v, l]) => opt('tier', v, G.tier, l)).join('')}</div></div>
+   </div>
+   <div class="gres"><div class="gsum"><div><span>Our picks total</span><strong>${fmt(total)} <small>EGP</small></strong>${BUDGET ? `<em class="${total <= BUDGET ? 'ok' : 'bad'}">${total <= BUDGET ? fmt(BUDGET - total) + ' under' : fmt(total - BUDGET) + ' over'} your ${fmt(BUDGET)} budget</em>` : ''}</div><button class="btn green" id="gadd">Add our picks to my home plan</button></div>
+   ${res.map(r => `<div class="grow"><div class="gh"><div><h3>${esc(r.t === 'TV' ? 'TV' : r.t)}</h3><p>${esc(r.why)}</p></div><a class="more" href="${specLink(r.t, r.spec)}">See all ${fmt(r.n)} →</a></div>
+     ${r.picks.length ? `<div class="gp3">${r.picks.map(([p, l]) => `<div class="pk"><div class="pkl"><b>${l}</b></div>${card(p)}</div>`).join('')}</div>` : `<p class="note">Nothing in stock matches exactly. <a href="#/c/${TSLUG[r.t]}">Browse all ${esc(plural(r.t).toLowerCase())}</a>.</p>`}</div>`).join('')}
+   </div></div></section>`;
+  app._guide = res;
+}
+
 /* ---------- about, 404 ---------- */
 function renderAbout() {
   app.innerHTML = pageHead({ crumbs: [[null, 'How it works']], title: 'How this site works', sub: 'What the numbers mean, where they come from, and what to double-check.' }) +
@@ -637,6 +796,8 @@ function route() {
   else if (a === 'p') renderProduct(b);
   else if (a === 'stores') renderStores();
   else if (a === 'plan') renderPlan(b ? b.split(',') : null);
+  else if (a === 'guide') renderGuide();
+  else if (a === 'watch') renderWatch();
   else if (a === 'st' && ST[b]) renderStore(b, q);
   else if (a === 'brands') renderBrands();
   else if (a === 'b' && brandBySlug(b)) renderBrand(brandBySlug(b));
@@ -651,7 +812,7 @@ function route() {
   route._last = a + ':' + b;
   if (!keepScroll) window.scrollTo(0, 0);
   renderTray(); reveal();
-  const titles = { '': 'Home appliance prices, side by side', departments: 'Departments', deals: 'Best deals', brands: 'Brands', about: 'How it works', compare: 'Compare', stores: 'Stores', plan: 'Home plan' };
+  const titles = { '': 'Home appliance prices, side by side', departments: 'Departments', deals: 'Best deals', brands: 'Brands', about: 'How it works', compare: 'Compare', stores: 'Stores', plan: 'Home plan', guide: 'Help me choose', watch: 'Watchlist' };
   document.title = (a === 'c' && typeBySlug(b) ? plural(typeBySlug(b)) : a === 'd' && grpBySlug(b) ? grpBySlug(b) : a === 's' ? 'Search: ' + (b || '') : a === 'p' && byId[b] ? byId[b].n : a === 'st' && ST[b] ? ST[b].name : a === 'b' && brandBySlug(b) ? brandBySlug(b) : titles[a] || 'Appliance Compare') + ' · Appliance Compare';
 }
 let io;
@@ -669,6 +830,14 @@ document.addEventListener('click', e => {
   if (t.dataset.cmp) { toggleCmp(t.dataset.cmp); return; }
   if (t.dataset.plan) { e.preventDefault(); togglePlan(t.dataset.plan); if (location.hash.startsWith('#/plan')) renderPlan(); return; }
   if (t.dataset.kit) { applyKit(t.dataset.kit); return; }
+  if (t.dataset.watch) { const p = byId[t.dataset.watch]; WATCH[p.id] = { p: p.p, t: null, d: Date.now() }; saveWatch(); toast('Watching. Any drop is flagged when you visit.'); renderProduct(p.id); return; }
+  if (t.dataset.wtarget) { const p = byId[t.dataset.wtarget], v = +String($('wt').value).replace(/[^0-9.]/g, ''); if (WATCH[p.id]) { WATCH[p.id].t = v && v < p.p ? v : null; saveWatch(); toast(WATCH[p.id].t ? `We'll flag it when it reaches ${fmt(WATCH[p.id].t)} EGP.` : 'Enter a price below the current one.'); renderProduct(p.id); } return; }
+  if (t.dataset.unwatch) { delete WATCH[t.dataset.unwatch]; saveWatch(); location.hash.startsWith('#/watch') ? renderWatch() : renderProduct(t.dataset.unwatch); return; }
+  if (t.dataset.g) { const v = t.dataset.v; G[t.dataset.g] = isNaN(+v) ? v : +v; saveG(); renderGuide(); return; }
+  if (t.dataset.gneed) { const x = t.dataset.gneed; G.need = G.need.includes(x) ? G.need.filter(y => y !== x) : G.need.concat(x); saveG(); renderGuide(); return; }
+  if (t.id === 'addroom') { G.rooms.push({ n: 'Bedroom ' + (G.rooms.length), a: 12, sun: false }); saveG(); renderGuide(); return; }
+  if (t.dataset.rmroom) { G.rooms.splice(+t.dataset.rmroom, 1); saveG(); renderGuide(); return; }
+  if (t.id === 'gadd') { const picks = []; (app._guide || []).forEach(r => { const p = r.picks.map(x => x[0]).find(x => !picks.includes(x)); if (p) picks.push(p); }); const types = new Set(picks.map(p => p.t)); PLAN = PLAN.filter(id => byId[id] && !types.has(byId[id].t)).concat(picks.map(p => p.id)); savePlan(); toast(`Added ${picks.length} picks to your home plan.`); location.hash = '#/plan'; return; }
   if (t.dataset.fit) { const pairs = t.dataset.fit.split(',').map(x => x.split('>')); const save = pairs.reduce((a, [f, to]) => a + (byId[f] ? byId[f].p : 0) - byId[to].p, 0); pairs.forEach(([f, to]) => swapIn(f, to)); savePlan(); toast(save >= 0 ? `Swapped ${pairs.length} item${pairs.length > 1 ? 's' : ''}, saving ${fmt(save)} EGP.` : `Upgraded for ${fmt(-save)} EGP.`); renderPlan(); return; }
   if (t.id === 'budclear') { BUDGET = 0; store.set('ac-budget', 0); renderPlan(); return; }
   if (t.id === 'planclear') { PLAN = []; savePlan(); renderPlan(); return; }
@@ -678,7 +847,7 @@ document.addEventListener('click', e => {
   if (t.dataset.store && $('filters')) { const x = t.dataset.store; C.stores.has(x) ? C.stores.delete(x) : C.stores.add(x); C.lim = 60; renderFilters(); renderResults(); return; }
   if (t.dataset.brand && $('filters')) { const b = t.dataset.brand; C.brands.has(b) ? C.brands.delete(b) : C.brands.add(b); renderFilters(); renderResults(); return; }
   if (t.dataset.cat) { const k = t.dataset.cat, v = t.dataset.num === '1' ? Number(t.dataset.v) : t.dataset.v; const s = C.f[k] || (C.f[k] = new Set()); s.has(v) ? s.delete(v) : s.add(v); renderFilters(); renderResults(); return; }
-  if (t.id === 'reset' || t.id === 'reset2') { Object.assign(C, { brands: new Set(), stores: new Set(), f: {}, pmin: null, pmax: null, instock: true, multi: false, q: '', lim: 60 }); const i = $('cq'); if (i) i.value = ''; renderFilters(); renderResults(); return; }
+  if (t.id === 'reset' || t.id === 'reset2') { Object.assign(C, { brands: new Set(), stores: new Set(), f: {}, pmin: null, pmax: null, instock: true, multi: false, great: false, q: '', lim: 60 }); const i = $('cq'); if (i) i.value = ''; renderFilters(); renderResults(); return; }
   if (t.id === 'fbtn') { $('filters').classList.toggle('open'); return; }
   if (t.id === 'tclr' || t.id === 'cclear') { CMP = []; saveCmp(); if (t.id === 'cclear') location.hash = '#/compare'; return; }
   if (t.id === 'burger') { const o = $('top').classList.toggle('open'); t.setAttribute('aria-expanded', o); return; }
@@ -691,12 +860,14 @@ document.addEventListener('change', e => {
   else if (t.id === 'instock') C.instock = t.checked;
   else if (t.id === 'fitb') C.pmax = t.checked ? +t.dataset.rem : null;
   else if (t.id === 'multi') C.multi = t.checked;
+  else if (t.id === 'great') C.great = t.checked;
   else if (t.dataset.bool) C.f[t.dataset.bool] = t.checked || null;
   else if (t.dataset.rmin || t.dataset.rmax) { const k = t.dataset.rmin || t.dataset.rmax; const s = C.f[k] || (C.f[k] = {}); s[t.dataset.rmin ? 'min' : 'max'] = t.value ? +t.value : null; }
   else if (t.id === 'sort') { C.sort = t.value; C.lim = 60; renderResults(); return; }
   else return;
   C.lim = 60; renderFilters(); renderResults();
 });
+document.addEventListener('change', e => { const t = e.target; if (t.dataset && t.dataset.room != null) { const r = G.rooms[+t.dataset.room]; if (!r) return; if (t.dataset.k === 'sun') r.sun = t.checked; else if (t.dataset.k === 'a') r.a = Math.max(0, +String(t.value).replace(',', '.') || 0); else r.n = t.value; saveG(); renderGuide(); } });
 document.addEventListener('input', e => { if (e.target.id === 'cq') { C.q = e.target.value.trim(); renderFilters(); renderResults(); } });
 document.addEventListener('submit', e => { const f = e.target;
   if (f.id === 'budf') { e.preventDefault(); const v = +String(f.b.value).replace(/[^0-9.]/g, ''); BUDGET = v >= 1000 ? Math.round(v) : 0; store.set('ac-budget', BUDGET); if (!BUDGET && v) toast('Enter a budget of at least 1,000 EGP.'); renderPlan(); return; } if (f.id === 'hsearch' || f.id === 'bsearch') { e.preventDefault(); const q = f.q.value.trim(); if (q) location.hash = '#/s/' + encodeURIComponent(q); f.q.blur(); } });
@@ -709,6 +880,9 @@ fetch('data/products.json').then(r => r.json()).then(D => {
   P.forEach(p => { byId[p.id] = p; (byType[p.t] = byType[p.t] || []).push(p); });
   Object.keys(byType).forEach(t => TSLUG[t] = slug(t)); Object.keys(GROUPS).forEach(g => GSLUG[g] = slug(g));
   const bc = {}; P.forEach(p => bc[p.b] = (bc[p.b] || 0) + 1); BRANDS = Object.entries(bc).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  computeGoodPrice();
+  fetch('data/history.json').then(r => r.ok ? r.json() : null).then(h => { HIST = h; watchAlerts(); if (h && /^#\/(p|deals)/.test(location.hash)) route(); }).catch(() => {});
+  window.__AC = { get P() { return P; }, peerLabel, peerLink };
   CMP = CMP.map(String).filter(i => byId[i]); PLAN = PLAN.map(String).filter(i => byId[i]); savePlan();
   const hs = document.querySelector('#hsearch input'); if (hs) hs.placeholder = `Search ${fmt(P.length)} products, brands, model codes`;
   $('fstores').innerHTML = Object.keys(ST).map(s => `<a href="#/st/${s}">${esc(ST[s].name)}</a>`).join('');
