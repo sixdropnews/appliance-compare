@@ -440,3 +440,20 @@ aside.flt{position:sticky;top:82px;align-self:start;max-height:calc(100vh - 96px
 .infl{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--deal) 22%,var(--card));font-size:13.5px}
 .wl .prow{grid-template-columns:76px minmax(0,1fr) auto}
 @media(max-width:520px){.offers th,.offers td{white-space:normal}.offers td s{display:none}.offers td{padding-left:4px}.offers{table-layout:fixed}.offers th{width:34%}}
+
+/* guide v2 */
+.gs h3 small,.cq h4 small{font-weight:500;color:var(--mute);font-size:12px;margin-left:4px}
+.ghb{display:flex;align-items:center;gap:12px;flex:none}
+.btn.sm{min-height:34px;padding:6px 14px;font-size:13.5px;border-radius:999px}
+.btn.ghost.sm.on{background:var(--ink);color:var(--bg)}
+.cpanel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 16px;margin:0 0 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0 22px}
+.cq{padding:10px 0;border-bottom:1px dashed var(--line)}
+.cq h4{margin:0 0 7px;font-size:13.5px}
+.cq .opts{display:flex;flex-wrap:wrap;gap:6px}.cq .pre{font-size:12.5px;padding:5px 11px}
+.budin.small{min-height:38px;max-width:220px}.budin.small input{font-size:15px;width:120px}
+.gsum{align-items:flex-start}
+.gtots{display:flex;gap:26px;flex-wrap:wrap}
+.gadds{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.gadds .btn:not(.green){background:transparent;color:var(--nightink);border:1px solid #3a414a}
+@media(max-width:620px){.gh{flex-direction:column;align-items:flex-start}.cpanel{grid-template-columns:1fr}}
+.relax .opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.relax .pre{font-size:13px}

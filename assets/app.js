@@ -691,76 +691,171 @@ function renderPlan(ids) {
 }
 
 /* ---------- help me choose ---------- */
-let G = store.get('ac-guide', null) || { people: 4, tier: 'mid', need: ['Refrigerator', 'Washing machine', 'Cooker', 'TV', 'Air conditioner', 'Water heater', 'Microwave'],
-  rooms: [{ n: 'Living room', a: 24, sun: false }, { n: 'Bedroom', a: 14, sun: false }], tvd: 2.5, kitchen: 'free90', heat: 'electric', layout: 'any', load: 'front', dish: 'no' };
-const saveG = () => store.set('ac-guide', G);
+const GDEF = { people: 4, tiers: ['mid'], stores: [], avoid: [], colours: [], instock: true, multi: false, great: false, tvd: 2.5,
+  need: ['Refrigerator', 'Washing machine', 'Cooker', 'TV', 'Air conditioner', 'Water heater', 'Microwave'],
+  rooms: [{ n: 'Living room', a: 24, sun: false }, { n: 'Bedroom', a: 14, sun: false }], items: {}, open: null };
+let G = Object.assign({}, GDEF, store.get('ac-guide2', {}));
+const saveG = () => store.set('ac-guide2', G);
+const COLOUR_T = ['Refrigerator', 'Freezer', 'Minibar & cooler', 'Washing machine', 'Washer-dryer', 'Dryer', 'Wash tower', 'Dishwasher', 'Cooker', 'Built-in oven', 'Hob', 'Hood', 'Microwave', 'Oven & hob set', 'Water dispenser', 'Kettle', 'Air fryer', 'Coffee machine'];
+const TIERQ = { budget: 0.12, mid: 0.5, premium: 0.85 }, TIERN = { budget: 'Budget', mid: 'Mid-range', premium: 'Premium' };
 const hpFor = (a, sun) => { const x = a * (sun ? 1.25 : 1); return x <= 15 ? 1.5 : x <= 22 ? 2.25 : x <= 30 ? 3 : x <= 40 ? 4 : 5; };
 const HP_RANGE = { 1.5: [1.25, 1.5], 2.25: [2, 2.25], 3: [2.75, 3], 4: [4, 4.5], 5: [5, 5] };
 const tvFor = d => d < 1.5 ? [40, 43] : d < 2 ? [48, 50] : d < 2.5 ? [55, 55] : d < 3 ? [65, 65] : d < 3.5 ? [75, 77] : [80, 86];
-function guideNeeds() {
-  const n = G.people, out = [];
-  const cap = n <= 2 ? [300, 399] : n <= 4 ? [400, 499] : n <= 6 ? [500, 599] : [600, 1100];
-  const kg = n <= 2 ? [6, 7.5] : n <= 4 ? [8, 9] : n <= 6 ? [10, 11] : [12, 30];
-  const wh = n <= 2 ? [30, 40] : n <= 4 ? [45, 55] : [60, 100];
-  const add = (t, why, spec) => { if (G.need.includes(t)) out.push({ t, why, spec }); };
-  add('Refrigerator', `${cap[0]}–${cap[1] > 1000 ? '' : cap[1]} L suits ${n <= 2 ? '1–2 people' : n <= 4 ? 'a family of 3–4' : n <= 6 ? 'a family of 5–6' : '7 or more people'}${G.layout !== 'any' ? ', ' + G.layout.toLowerCase() : ''}, no frost`,
-    Object.assign({ 'r.Capacity (L)': cap, 'f.No frost': 'Yes' }, G.layout !== 'any' ? { 'f.Layout': G.layout } : {}));
-  add('Washing machine', `${kg[0]}–${kg[1] > 20 ? '+' : kg[1]} kg for ${n} ${n === 1 ? 'person' : 'people'}, ${G.load === 'half' ? 'half automatic (twin tub)' : (G.load === 'front' ? 'front' : 'top') + ' load, fully automatic'}`,
-    G.load === 'half' ? { 'r.Wash capacity (kg)': kg, 'f.Automation': 'Half automatic (twin tub)' } : { 'r.Wash capacity (kg)': kg, 'f.Loading': G.load === 'front' ? 'Front load' : 'Top load', 'f.Automation': 'Fully automatic' });
-  if (G.need.includes('Cooker')) {
-    if (G.kitchen === 'builtin') { out.push({ t: 'Hob', why: '90 cm built-in gas hob', spec: { 'f.Type': 'Gas', 'f.Width (cm)': 90 } }); out.push({ t: 'Built-in oven', why: '60 cm built-in oven', spec: { 'f.Width (cm)': 60 } }); }
-    else out.push({ t: 'Cooker', why: G.kitchen === 'free60' ? '60 cm freestanding cooker, 4 burners' : '90 cm freestanding cooker, 5 burners', spec: G.kitchen === 'free60' ? { 'f.Width (cm)': 60 } : { 'f.Width (cm)': 90, 'f.Burners': 5 } });
-  }
-  add('TV', `${tvFor(G.tvd)[0]}${tvFor(G.tvd)[1] !== tvFor(G.tvd)[0] ? '–' + tvFor(G.tvd)[1] : ''}" for sitting ${G.tvd} m away`, { 'r.Screen (inch)': tvFor(G.tvd) });
-  if (G.need.includes('Air conditioner')) G.rooms.filter(r => r.a > 0).forEach((r, i) => { const hp = hpFor(r.a, r.sun); out.push({ t: 'Air conditioner', why: `${hp} HP for the ${r.n.toLowerCase() || 'room'} (${r.a} m²${r.sun ? ', sunny or top floor' : ''})`, spec: { 'r.Capacity (HP)': HP_RANGE[hp] }, room: i }); });
-  add('Water heater', G.heat === 'gas' ? `Gas heater, ${n <= 2 ? '6' : '10'} L/min` : G.heat === 'instant' ? 'Instant electric heater' : `${wh[0]}–${wh[1]} L electric tank`,
-    G.heat === 'gas' ? { 'f.Type': 'Gas', 'r.Tank / flow (L)': n <= 2 ? [6, 6] : [10, 16] } : G.heat === 'instant' ? { 'f.Type': 'Instant electric' } : { 'f.Type': 'Electric tank', 'r.Tank / flow (L)': wh });
-  add('Microwave', n <= 2 ? '20–25 L microwave' : '25–34 L microwave', { 'r.Capacity (L)': n <= 2 ? [20, 25] : [25, 34] });
-  add('Dishwasher', n <= 2 ? 'Slim or 10–12 place settings' : n <= 4 ? '12–14 place settings' : '14+ place settings', { 'r.Place settings': n <= 2 ? [6, 12] : n <= 4 ? [12, 14] : [14, 17] });
-  add('Freezer', n <= 4 ? '150–250 L upright freezer' : '250 L+ upright freezer', { 'f.Type': 'Upright', 'r.Capacity (L)': n <= 4 ? [150, 250] : [250, 700] });
-  add('Dryer', `${kg[0] >= 10 ? '9–10' : '8–9'} kg dryer`, { 'r.Dry capacity (kg)': kg[0] >= 10 ? [9, 11] : [8, 9.5] });
-  add('Vacuum & floor care', 'Canister vacuum', { 'f.Type': 'Canister' });
-  add('Water dispenser', 'Hot & cold dispenser', {});
-  return out;
+const item = t => (G.items[t] = G.items[t] || { size: 'auto', f: {}, must: [], brands: [], max: null });
+const MF = {};
+function metaFor(t) {
+  if (MF[t]) return MF[t];
+  const rows = byType[t] || [], keys = [];
+  rows.forEach(p => Object.keys(p.f).forEach(k => { if (!keys.includes(k)) keys.push(k); }));
+  const keyAsSize = sizeBands(t).length > 0 || !!autoSize(t) || t === 'Air conditioner';
+  return MF[t] = keys.map(k => {
+    const vals = rows.map(p => p.f[k]).filter(v => v != null && v !== 'Not stated'); if (!vals.length) return null;
+    const uniq = [...new Set(vals)], cnt = {}; vals.forEach(v => cnt[v] = (cnt[v] || 0) + 1);
+    if (uniq.every(v => v === 'Yes' || v === 'No')) return uniq.length === 2 ? { k, kind: 'bool', n: cnt.Yes || 0 } : null;
+    if (uniq.every(v => typeof v === 'number')) { uniq.sort((a, b) => a - b); return k === KEY[t] && keyAsSize ? null : { k, kind: uniq.length <= 10 ? 'cat' : 'min', vals: uniq, cnt }; }
+    if (uniq.length < 2) return null;
+    return { k, kind: 'cat', vals: uniq.sort((a, b) => cnt[b] - cnt[a]), cnt };
+  }).filter(Boolean);
 }
-function specMatch(p, spec) { return Object.entries(spec).every(([k, v]) => { const key = k.slice(2), x = p.f[key]; if (k.startsWith('r.')) return typeof x === 'number' && x >= v[0] - 1e-9 && x <= v[1] + 1e-9; return x === v; }); }
-function specLink(t, spec) { const q = new URLSearchParams(); Object.entries(spec).forEach(([k, v]) => q.set(k, Array.isArray(v) ? v[0] + '~' + v[1] : v)); return '#/c/' + TSLUG[t] + (q.toString() ? '?' + q.toString() : ''); }
-function guidePicks(t, spec) {
-  const all = (byType[t] || []).filter(p => p.p && inStock(p) && specMatch(p, spec));
-  const known = all.filter(p => brandCount(t, p.b) >= 3); const pool = (known.length >= 4 ? known : all).sort((a, b) => a.p - b.p);
-  if (!pool.length) return { n: all.length, picks: [] };
-  const at = q => { const tgt = pool[Math.min(pool.length - 1, Math.floor(pool.length * q))].p; const near = pool.filter(p => Math.abs(p.p - tgt) <= tgt * 0.1); return near.filter(p => live(p).length > 1).sort((a, b) => (a.gp ? a.gp.r : 1) - (b.gp ? b.gp.r : 1))[0] || near[0]; };
-  const q = { budget: 0.12, mid: 0.5, premium: 0.85 }[G.tier];
-  const main = at(q), value = pool.filter(p => p.gp && p.gp.lab === 'great')[0] || pool[0], prem = at(Math.min(0.95, q + 0.3));
-  const picks = []; [[main, 'Our pick'], [value, 'Best value'], [prem, 'Step up']].forEach(([p, l]) => { if (p && !picks.some(x => x[0].id === p.id)) picks.push([p, l]); });
-  return { n: all.length, picks };
+/* automatic size for a household */
+function autoSize(t) {
+  const n = G.people, by = (a, b, c, d) => n <= 2 ? a : n <= 4 ? b : n <= 6 ? c : d;
+  const who = n <= 2 ? '1–2 people' : n <= 4 ? 'a family of 3–4' : n <= 6 ? 'a family of 5–6' : '7 or more people';
+  switch (t) {
+    case 'Refrigerator': return [by([280, 399], [400, 499], [500, 599], [600, null]), `for ${who}`];
+    case 'Freezer': return [by([100, 199], [150, 260], [250, 350], [300, null]), `for ${who}`];
+    case 'Washing machine': return [by([6, 7.5], [8, 9], [10, 11], [12, null]), `for ${who}`];
+    case 'Washer-dryer': return [by([7, 8.5], [8, 9.5], [10, 12], [12, null]), `for ${who}`];
+    case 'Wash tower': return [by([12, 14], [12, 14], [20, 25], [20, 25]), `for ${who}`];
+    case 'Dryer': return [by([7, 8], [8, 9], [9, 11], [10, null]), `for ${who}`];
+    case 'Dishwasher': return [by([6, 12], [12, 14], [13, 15], [14, 17]), `for ${who}`];
+    case 'Water heater': return [by([30, 40], [45, 55], [60, 80], [80, null]), `tank for ${who}`];
+    case 'Microwave': return [by([20, 25], [25, 34], [28, 42], [30, null]), `for ${who}`];
+    case 'Air fryer': return [by([2, 4], [4.5, 6.5], [6, 9], [8, null]), `for ${who}`];
+    case 'Minibar & cooler': return [[40, 130], 'compact'];
+    case 'TV': return [tvFor(G.tvd), `for sitting ${G.tvd} m away`];
+    default: return null;
+  }
+}
+const UNITS = { 'Place settings': 'place settings', 'Burners': 'burners', 'Taps': 'taps', 'Stages': 'stages' };
+const sizeText = (t, r) => { const k = KEY[t], u = UNITS[k] || (unit(k) !== k ? unit(k) : ''); return (r[1] == null ? r[0] + '+' : r[0] === r[1] ? r[0] : r[0] + '–' + r[1]) + (u ? ' ' + u : ''); };
+const sizeBands = t => (PRESETS[t] || []).filter(([, d]) => Object.keys(d).length === 1 && d[KEY[t]] && d[KEY[t]].r).map(([l, d]) => [l, d[KEY[t]].r]);
+const inR = (v, r) => typeof v === 'number' && (r[0] == null || v >= r[0] - 1e-9) && (r[1] == null || v <= r[1] + 1e-9);
+function itemMatch(p, t, it, sizeRanges) {
+  if (!p.p) return false;
+  if (G.instock && !inStock(p)) return false;
+  if (G.stores.length && !p.of.some(o => G.stores.includes(o.s) && (!G.instock || o.in !== 0))) return false;
+  if (G.multi && live(p).length < 2) return false;
+  if (G.great && !(p.gp && p.gp.lab === 'great')) return false;
+  if (G.avoid.includes(p.b)) return false;
+  if (G.colours.length && COLOUR_T.includes(t) && !(it.f.Colour || []).length && !G.colours.includes(p.f.Colour)) return false;
+  if (it.brands.length && !it.brands.includes(p.b)) return false;
+  if (it.max && p.p > it.max) return false;
+  if (sizeRanges && sizeRanges.length && !sizeRanges.some(r => inR(p.f[KEY[t]], r))) return false;
+  for (const [k, vs] of Object.entries(it.f)) { if (!vs.length) continue; const m = metaFor(t).find(x => x.k === k); if (m && m.kind === 'min') { if (!(p.f[k] >= vs[0])) return false; } else if (!vs.includes(p.f[k])) return false; }
+  if (it.must.some(k => p.f[k] !== 'Yes')) return false;
+  return true;
+}
+function guideRows() {
+  const out = [];
+  G.need.filter(t => byType[t]).forEach(t => {
+    const it = item(t), auto = autoSize(t);
+    let ranges = null, why = '';
+    if (it.size === 'auto') { if (auto) { ranges = [auto[0]]; why = `${sizeText(t, auto[0])} ${auto[1]}`; } }
+    else if (it.size === 'any') ranges = null;
+    else { const bands = sizeBands(t).filter(([l]) => it.size.includes(l)); ranges = bands.map(b => b[1]); why = bands.map(b => b[0]).join(' or '); }
+    if (t === 'Air conditioner' && it.size === 'auto') {
+      G.rooms.filter(r => r.a > 0).forEach((r, i) => { const hp = hpFor(r.a, r.sun); out.push({ t, key: t + '#' + i, it, ranges: [HP_RANGE[hp]], why: `${hp} HP for the ${(r.n || 'room').toLowerCase()} (${r.a} m²${r.sun ? ', sunny / top floor' : ''})` }); });
+      return;
+    }
+    out.push({ t, key: t, it, ranges, why });
+  });
+  return out.map(r => {
+    const all = (byType[r.t] || []).filter(p => itemMatch(p, r.t, r.it, r.ranges));
+    const known = all.filter(p => brandCount(r.t, p.b) >= 3), pool = (known.length >= 4 ? known : all).sort((a, b) => a.p - b.p);
+    const at = q => { if (!pool.length) return null; const tgt = pool[Math.min(pool.length - 1, Math.floor(pool.length * q))].p; const near = pool.filter(p => Math.abs(p.p - tgt) <= tgt * 0.1); return near.filter(p => live(p).length > 1).sort((a, b) => (a.gp ? a.gp.r : 1) - (b.gp ? b.gp.r : 1))[0] || near[0]; };
+    const picks = [];
+    G.tiers.forEach(tr => { const p = at(TIERQ[tr]); if (p) picks.push([p, TIERN[tr] + ' pick', tr]); });
+    const val = pool.filter(p => p.gp && p.gp.lab === 'great')[0] || pool[0];
+    if (val && !picks.some(x => x[0].id === val.id)) picks.push([val, 'Best value', null]);
+    return { ...r, n: all.length, picks };
+  });
+}
+function relaxHints(r) {
+  const it = r.it, out = [], cnt = (it2, ranges) => (byType[r.t] || []).filter(p => itemMatch(p, r.t, it2, ranges)).length;
+  const clone = () => JSON.parse(JSON.stringify(it));
+  if (it.brands.length) { const c = clone(); c.brands = []; out.push(['Any brand', 'brands', '', cnt(c, r.ranges)]); }
+  if (it.max) { const c = clone(); c.max = null; out.push(['No price limit', 'max', '', cnt(c, r.ranges)]); }
+  it.must.forEach(k => { const c = clone(); c.must = c.must.filter(x => x !== k); out.push([`Without “${k.replace(/ \(.*\)/, '')}”`, 'must', k, cnt(c, r.ranges)]); });
+  Object.entries(it.f).forEach(([k, v]) => { if (!v.length) return; const c = clone(); c.f[k] = []; out.push([`Any ${k.replace(/ \(.*\)/, '').toLowerCase()}`, 'f', k, cnt(c, r.ranges)]); });
+  if (r.ranges) out.push(['Any size', 'size', '', cnt(it, null)]);
+  const ok = out.filter(x => x[3] > 0).sort((a, b) => b[3] - a[3]).slice(0, 5);
+  if (ok.length) return ok;
+  const c = { size: 'any', f: {}, must: [], brands: [], max: null }, n = cnt(c, null);
+  return n ? [[`Reset ${r.t === 'TV' ? 'TV' : r.t.toLowerCase()} options (no single change is enough)`, 'reset', '', n]] : [];
+}
+function guideLink(r) {
+  const q = new URLSearchParams();
+  if (r.ranges && r.ranges.length === 1) q.set('r.' + KEY[r.t], (r.ranges[0][0] ?? '') + '~' + (r.ranges[0][1] ?? ''));
+  Object.entries(r.it.f).forEach(([k, v]) => { const m = metaFor(r.t).find(x => x.k === k); if (v.length && m && m.kind !== 'min') q.set('f.' + k, v.join('|')); });
+  r.it.must.forEach(k => q.set('f.' + k, '1'));
+  if (r.it.brands.length) q.set('b', r.it.brands.join('|'));
+  if (G.stores.length) q.set('st', G.stores.join('|'));
+  if (r.it.max) q.set('pmax', r.it.max);
+  if (G.multi) q.set('multi', '1'); if (G.great) q.set('great', '1'); if (!G.instock) q.set('all', '1');
+  return '#/c/' + TSLUG[r.t] + (q.toString() ? '?' + q.toString() : '');
+}
+const chip = (on, attrs, label, n) => `<button class="pre${on ? ' on' : ''}" ${attrs}>${label}${n != null ? ` <small>${n}</small>` : ''}</button>`;
+function customPanel(t) {
+  const it = item(t), meta = metaFor(t), auto = autoSize(t), bands = sizeBands(t);
+  const base = (byType[t] || []).filter(p => p.p && (!G.instock || inStock(p)));
+  const cntBy = (k, v) => base.filter(p => p.f[k] === v).length;
+  const brandsTop = Object.entries(base.reduce((a, p) => (a[p.b] = (a[p.b] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1]).slice(0, 24);
+  const sizeOpts = (KEY[t] && (bands.length || auto)) ? `<div class="cq"><h4>Size${KEY[t] ? ` <small>${esc(KEY[t].replace(/ \(.*\)/, '').toLowerCase())}</small>` : ''}</h4><div class="opts">
+     ${auto || t === 'Air conditioner' ? chip(it.size === 'auto', `data-isz="${t}" data-v="auto"`, t === 'Air conditioner' ? 'Auto: by room size' : `Auto: ${esc(sizeText(t, auto[0]))}`) : ''}
+     ${chip(it.size === 'any', `data-isz="${t}" data-v="any"`, 'Any size')}
+     ${bands.map(([l, r]) => chip(Array.isArray(it.size) && it.size.includes(l), `data-isz="${t}" data-v="${esc(l)}"`, esc(l), base.filter(p => inR(p.f[KEY[t]], r)).length)).join('')}</div></div>` : '';
+  const specs = meta.filter(m => m.kind !== 'bool').map(m => m.kind === 'min'
+    ? `<div class="cq"><h4>${esc(m.k)} <small>at least</small></h4><div class="opts">${chip(!(it.f[m.k] || []).length, `data-imin="${t}" data-k="${esc(m.k)}" data-v=""`, 'Any')}${[...new Set(m.vals.filter((v, i, a) => i % Math.ceil(a.length / 6) === 0))].map(v => chip((it.f[m.k] || [])[0] === v, `data-imin="${t}" data-k="${esc(m.k)}" data-v="${v}"`, fmt(v))).join('')}</div></div>`
+    : `<div class="cq"><h4>${esc(m.k)} <small>pick any</small></h4><div class="opts">${m.vals.slice(0, 14).map(v => chip((it.f[m.k] || []).includes(v), `data-ispec="${t}" data-k="${esc(m.k)}" data-v="${esc(v)}" data-num="${typeof v === 'number' ? 1 : 0}"`, esc(v), cntBy(m.k, v))).join('')}</div></div>`).join('');
+  const bools = meta.filter(m => m.kind === 'bool');
+  return `<div class="cpanel">${sizeOpts}${specs}
+    ${bools.length ? `<div class="cq"><h4>Must have</h4><div class="opts">${bools.map(m => chip(it.must.includes(m.k), `data-imust="${t}" data-k="${esc(m.k)}"`, esc(m.k.replace(/ \(.*\)/, '')), m.n)).join('')}</div></div>` : ''}
+    <div class="cq"><h4>Brands <small>only these, leave empty for any</small></h4><div class="opts">${brandsTop.map(([b, n]) => chip(it.brands.includes(b), `data-ibrand="${t}" data-v="${esc(b)}"`, esc(b), n)).join('')}</div></div>
+    <div class="cq"><h4>Maximum price</h4><div class="budin small"><input data-imax="${t}" inputmode="numeric" placeholder="No limit" value="${it.max ? fmt(it.max) : ''}"><span>EGP</span></div></div>
+    <div class="cq"><button class="link" data-ireset="${t}">Reset ${esc(t === 'TV' ? 'TV' : t.toLowerCase())} options</button></div></div>`;
 }
 function renderGuide() {
-  const needs = guideNeeds();
-  const allT = ['Refrigerator', 'Washing machine', 'Cooker', 'TV', 'Air conditioner', 'Water heater', 'Microwave', 'Dishwasher', 'Freezer', 'Dryer', 'Vacuum & floor care', 'Water dispenser'];
-  const res = needs.map(nd => ({ ...nd, ...guidePicks(nd.t, nd.spec) }));
-  const total = res.reduce((a, r) => a + (r.picks[0] ? r.picks[0][0].p : 0), 0);
-  const opt = (name, val, cur, lab) => `<button class="pre${cur === val ? ' on' : ''}" data-g="${name}" data-v="${val}">${lab}</button>`;
-  app.innerHTML = pageHead({ crumbs: [[null, 'Help me choose']], title: 'Help me choose', sub: 'Tell us about your home. We work out the right size for each appliance and pick models from every store, at the level you choose.' }) +
+  const rows = guideRows(); app._guide = rows;
+  const allT = Object.values(GROUPS).flat().filter(t => byType[t]);
+  const tierTot = G.tiers.map(tr => [tr, rows.reduce((a, r) => { const p = r.picks.find(x => x[2] === tr); return a + (p ? p[0].p : 0); }, 0)]);
+  const brandsAll = BRANDS.slice(0, 36).map(b => b[0]);
+  const colours = [...new Set(P.map(p => p.f.Colour).filter(Boolean))];
+  const summary = t => { const it = item(t), bits = []; Object.entries(it.f).forEach(([k, v]) => { if (v.length) bits.push(metaFor(t).find(m => m.k === k)?.kind === 'min' ? `${k} ≥ ${v[0]}` : v.join(' / ')); }); it.must.forEach(k => bits.push(k.replace(/ \(.*\)/, ''))); if (it.brands.length) bits.push(it.brands.join(', ')); if (it.max) bits.push('≤ ' + fmt(it.max) + ' EGP'); return bits; };
+  app.innerHTML = pageHead({ crumbs: [[null, 'Help me choose']], title: 'Help me choose', sub: 'Tell us about your home and what you like. Pick as many options as you want; we size each appliance and pick models from every store.' }) +
   `<section class="sec" style="padding-top:30px"><div class="wrap guide">
    <div class="gq">
-    <div class="gs"><h3>How many people live at home?</h3><div class="opts">${[1, 2, 3, 4, 5, 6, 7].map(n => opt('people', n, G.people, n === 7 ? '7+' : n)).join('')}</div></div>
-    <div class="gs"><h3>Which appliances do you need?</h3><div class="opts">${allT.map(t => `<button class="pre${G.need.includes(t) ? ' on' : ''}" data-gneed="${t}">${t === 'TV' ? 'TV' : t === 'Vacuum & floor care' ? 'Vacuum' : t}</button>`).join('')}</div></div>
-    ${G.need.includes('Air conditioner') ? `<div class="gs"><h3>Rooms that need an AC</h3><p class="note">Room size in m² (length × width). Tick “sunny / top floor” for rooms that get direct sun or sit under the roof.</p>
-      ${G.rooms.map((r, i) => `<div class="room"><input data-room="${i}" data-k="n" value="${esc(r.n)}" aria-label="Room name"><input data-room="${i}" data-k="a" inputmode="decimal" value="${r.a}" aria-label="Room size in square metres"><span>m²</span><label class="tog"><input type="checkbox" data-room="${i}" data-k="sun" ${r.sun ? 'checked' : ''}> sunny / top floor</label><b>${hpFor(r.a, r.sun)} HP</b><button class="link" data-rmroom="${i}" aria-label="Remove room">×</button></div>`).join('')}
+    <div class="gs"><h3>People at home</h3><div class="opts">${[1, 2, 3, 4, 5, 6, 7].map(n => chip(G.people === n, `data-gs="people" data-v="${n}"`, n === 7 ? '7+' : n)).join('')}</div></div>
+    <div class="gs"><h3>Price level <small>pick one or more</small></h3><div class="opts">${Object.keys(TIERN).map(tr => chip(G.tiers.includes(tr), `data-gm="tiers" data-v="${tr}"`, TIERN[tr])).join('')}</div></div>
+    <div class="gs"><h3>Appliances <small>${G.need.length} selected</small></h3><div class="opts">${allT.map(t => chip(G.need.includes(t), `data-need="${t}"`, t === 'Vacuum & floor care' ? 'Vacuum' : t === 'Kitchen small appliance' ? 'Kitchen gadgets' : esc(t))).join('')}</div></div>
+    ${G.need.includes('Air conditioner') ? `<div class="gs"><h3>Rooms that need an AC</h3><p class="note">Size in m² (length × width). Tick rooms that get direct sun or sit under the roof.</p>
+      ${G.rooms.map((r, i) => `<div class="room"><input data-room="${i}" data-k="n" value="${esc(r.n)}" aria-label="Room name"><input data-room="${i}" data-k="a" inputmode="decimal" value="${r.a}" aria-label="Room size in square metres"><span>m²</span><label class="tog"><input type="checkbox" data-room="${i}" data-k="sun" ${r.sun ? 'checked' : ''}> sunny</label><b>${hpFor(r.a, r.sun)} HP</b><button class="link" data-rmroom="${i}" aria-label="Remove room">×</button></div>`).join('')}
       <button class="link" id="addroom">+ Add a room</button></div>` : ''}
-    ${G.need.includes('TV') ? `<div class="gs"><h3>How far do you sit from the TV?</h3><div class="opts">${[1.2, 1.8, 2.2, 2.7, 3.2, 3.8].map(d => opt('tvd', d, G.tvd, d + ' m')).join('')}</div></div>` : ''}
-    ${G.need.includes('Refrigerator') ? `<div class="gs"><h3>Fridge style</h3><div class="opts">${[['any', 'No preference'], ['Top freezer', 'Freezer on top'], ['Bottom freezer (combi)', 'Freezer at bottom'], ['Side-by-side', 'Side-by-side']].map(([v, l]) => opt('layout', v, G.layout, l)).join('')}</div></div>` : ''}
-    ${G.need.includes('Washing machine') ? `<div class="gs"><h3>Washing machine</h3><div class="opts">${[['front', 'Front load'], ['top', 'Top load automatic'], ['half', 'Half automatic (twin tub)']].map(([v, l]) => opt('load', v, G.load, l)).join('')}</div></div>` : ''}
-    ${G.need.includes('Cooker') ? `<div class="gs"><h3>Your kitchen</h3><div class="opts">${[['free90', '90 cm freestanding cooker'], ['free60', '60 cm freestanding cooker'], ['builtin', 'Built-in hob + oven']].map(([v, l]) => opt('kitchen', v, G.kitchen, l)).join('')}</div></div>` : ''}
-    ${G.need.includes('Water heater') ? `<div class="gs"><h3>Water heating</h3><div class="opts">${[['electric', 'Electric tank'], ['gas', 'Gas (natural or cylinder)'], ['instant', 'Instant electric']].map(([v, l]) => opt('heat', v, G.heat, l)).join('')}</div></div>` : ''}
-    <div class="gs"><h3>What level?</h3><div class="opts">${[['budget', 'Budget'], ['mid', 'Mid-range'], ['premium', 'Premium']].map(([v, l]) => opt('tier', v, G.tier, l)).join('')}</div></div>
+    ${G.need.includes('TV') ? `<div class="gs"><h3>Distance to the TV</h3><div class="opts">${[1.2, 1.8, 2.2, 2.7, 3.2, 3.8].map(d => chip(G.tvd === d, `data-gs="tvd" data-v="${d}"`, d + ' m')).join('')}</div></div>` : ''}
+    <div class="gs"><h3>Stores <small>any if none picked</small></h3><div class="opts">${Object.keys(ST).map(s => chip(G.stores.includes(s), `data-gm="stores" data-v="${s}"`, sdot(s) + esc(ST[s].name))).join('')}</div></div>
+    <div class="gs"><h3>Colours <small>for kitchen and laundry appliances; any if none picked</small></h3><div class="opts">${colours.map(c => chip(G.colours.includes(c), `data-gm="colours" data-v="${esc(c)}"`, esc(c))).join('')}</div></div>
+    <div class="gs"><h3>Avoid brands</h3><div class="opts">${brandsAll.map(b => chip(G.avoid.includes(b), `data-gm="avoid" data-v="${esc(b)}"`, esc(b))).join('')}</div></div>
+    <div class="gs"><h3>Only show</h3><div class="opts">${chip(G.instock, 'data-gb="instock"', 'In stock')}${chip(G.multi, 'data-gb="multi"', 'Sold by 2+ stores')}${chip(G.great, 'data-gb="great"', 'Great prices')}</div></div>
+    <div class="gs"><button class="link" id="greset">Start over</button></div>
    </div>
-   <div class="gres"><div class="gsum"><div><span>Our picks total</span><strong>${fmt(total)} <small>EGP</small></strong>${BUDGET ? `<em class="${total <= BUDGET ? 'ok' : 'bad'}">${total <= BUDGET ? fmt(BUDGET - total) + ' under' : fmt(total - BUDGET) + ' over'} your ${fmt(BUDGET)} budget</em>` : ''}</div><button class="btn green" id="gadd">Add our picks to my home plan</button></div>
-   ${res.map(r => `<div class="grow"><div class="gh"><div><h3>${esc(r.t === 'TV' ? 'TV' : r.t)}</h3><p>${esc(r.why)}</p></div><a class="more" href="${specLink(r.t, r.spec)}">See all ${fmt(r.n)} →</a></div>
-     ${r.picks.length ? `<div class="gp3">${r.picks.map(([p, l]) => `<div class="pk"><div class="pkl"><b>${l}</b></div>${card(p)}</div>`).join('')}</div>` : `<p class="note">Nothing in stock matches exactly. <a href="#/c/${TSLUG[r.t]}">Browse all ${esc(plural(r.t).toLowerCase())}</a>.</p>`}</div>`).join('')}
+   <div class="gres"><div class="gsum"><div class="gtots">${tierTot.map(([tr, v]) => `<div><span>${TIERN[tr]} total</span><strong>${fmt(v)} <small>EGP</small></strong>${BUDGET ? `<em class="${v <= BUDGET ? 'ok' : 'bad'}">${v <= BUDGET ? fmt(BUDGET - v) + ' under' : fmt(v - BUDGET) + ' over'} budget</em>` : ''}</div>`).join('')}</div>
+     <div class="gadds">${G.tiers.map(tr => `<button class="btn${tr === G.tiers[0] ? ' green' : ''}" data-gadd="${tr}">Add ${TIERN[tr].toLowerCase()} picks to plan</button>`).join('')}</div></div>
+   ${rows.length ? '' : '<div class="empty">Pick at least one appliance on the left.</div>'}
+   ${rows.map((r, i) => { const first = rows.findIndex(x => x.t === r.t) === i, bits = summary(r.t); return `<div class="grow"><div class="gh"><div><h3>${esc(r.t === 'TV' ? 'TV' : r.t)}</h3><p>${esc(r.why || 'Any size')}${bits.length ? ' · ' + esc(bits.join(' · ')) : ''}</p></div>
+     <div class="ghb">${first ? `<button class="btn ghost sm${G.open === r.t ? ' on' : ''}" data-open="${r.t}">${G.open === r.t ? 'Done' : 'Customise'}</button>` : ''}<a class="more" href="${guideLink(r)}">See all ${fmt(r.n)} →</a></div></div>
+     ${first && G.open === r.t ? customPanel(r.t) : ''}
+     ${r.picks.length ? `<div class="gp3">${r.picks.map(([p, l]) => `<div class="pk"><div class="pkl"><b>${l}</b></div>${card(p)}</div>`).join('')}</div>` : `<div class="relax"><p class="note">Nothing matches all these choices${G.stores.length || G.colours.length || G.multi || G.great ? ' (including your store, colour and “only show” choices on the left)' : ''}. Try:</p><div class="opts">${relaxHints(r).map(([l, kind, k, n]) => `<button class="pre" data-irelax="${r.t}" data-kind="${kind}" data-k="${esc(k)}">${esc(l)} <small>${fmt(n)} match</small></button>`).join('') || `<a href="#/c/${TSLUG[r.t]}">Browse all ${esc(plural(r.t).toLowerCase())}</a>`}</div></div>`}</div>`; }).join('')}
    </div></div></section>`;
-  app._guide = res;
 }
 
 /* ---------- about, 404 ---------- */
@@ -833,11 +928,22 @@ document.addEventListener('click', e => {
   if (t.dataset.watch) { const p = byId[t.dataset.watch]; WATCH[p.id] = { p: p.p, t: null, d: Date.now() }; saveWatch(); toast('Watching. Any drop is flagged when you visit.'); renderProduct(p.id); return; }
   if (t.dataset.wtarget) { const p = byId[t.dataset.wtarget], v = +String($('wt').value).replace(/[^0-9.]/g, ''); if (WATCH[p.id]) { WATCH[p.id].t = v && v < p.p ? v : null; saveWatch(); toast(WATCH[p.id].t ? `We'll flag it when it reaches ${fmt(WATCH[p.id].t)} EGP.` : 'Enter a price below the current one.'); renderProduct(p.id); } return; }
   if (t.dataset.unwatch) { delete WATCH[t.dataset.unwatch]; saveWatch(); location.hash.startsWith('#/watch') ? renderWatch() : renderProduct(t.dataset.unwatch); return; }
-  if (t.dataset.g) { const v = t.dataset.v; G[t.dataset.g] = isNaN(+v) ? v : +v; saveG(); renderGuide(); return; }
-  if (t.dataset.gneed) { const x = t.dataset.gneed; G.need = G.need.includes(x) ? G.need.filter(y => y !== x) : G.need.concat(x); saveG(); renderGuide(); return; }
-  if (t.id === 'addroom') { G.rooms.push({ n: 'Bedroom ' + (G.rooms.length), a: 12, sun: false }); saveG(); renderGuide(); return; }
+  if (t.dataset.gs) { G[t.dataset.gs] = +t.dataset.v; saveG(); renderGuide(); return; }
+  if (t.dataset.gm) { const k = t.dataset.gm, v = t.dataset.v, a = G[k]; G[k] = a.includes(v) ? a.filter(x => x !== v) : a.concat(v); if (k === 'tiers' && !G.tiers.length) G.tiers = [v]; saveG(); renderGuide(); return; }
+  if (t.dataset.gb) { G[t.dataset.gb] = !G[t.dataset.gb]; saveG(); renderGuide(); return; }
+  if (t.dataset.need) { const x = t.dataset.need; G.need = G.need.includes(x) ? G.need.filter(y => y !== x) : G.need.concat(x); saveG(); renderGuide(); return; }
+  if (t.dataset.open) { G.open = G.open === t.dataset.open ? null : t.dataset.open; saveG(); renderGuide(); return; }
+  if (t.dataset.isz) { const it = item(t.dataset.isz), v = t.dataset.v; if (v === 'auto' || v === 'any') it.size = v; else { const cur = Array.isArray(it.size) ? it.size : []; it.size = cur.includes(v) ? cur.filter(x => x !== v) : cur.concat(v); if (!it.size.length) it.size = 'auto'; } saveG(); renderGuide(); return; }
+  if (t.dataset.ispec) { const it = item(t.dataset.ispec), k = t.dataset.k, v = t.dataset.num === '1' ? +t.dataset.v : t.dataset.v, a = it.f[k] || []; it.f[k] = a.includes(v) ? a.filter(x => x !== v) : a.concat(v); saveG(); renderGuide(); return; }
+  if (t.dataset.imin) { const it = item(t.dataset.imin); it.f[t.dataset.k] = t.dataset.v === '' ? [] : [+t.dataset.v]; saveG(); renderGuide(); return; }
+  if (t.dataset.imust) { const it = item(t.dataset.imust), k = t.dataset.k; it.must = it.must.includes(k) ? it.must.filter(x => x !== k) : it.must.concat(k); saveG(); renderGuide(); return; }
+  if (t.dataset.ibrand) { const it = item(t.dataset.ibrand), v = t.dataset.v; it.brands = it.brands.includes(v) ? it.brands.filter(x => x !== v) : it.brands.concat(v); saveG(); renderGuide(); return; }
+  if (t.dataset.irelax) { const it = item(t.dataset.irelax), kind = t.dataset.kind, k = t.dataset.k; if (kind === 'brands') it.brands = []; else if (kind === 'max') it.max = null; else if (kind === 'must') it.must = it.must.filter(x => x !== k); else if (kind === 'f') it.f[k] = []; else if (kind === 'size') it.size = 'any'; else if (kind === 'reset') delete G.items[t.dataset.irelax]; saveG(); renderGuide(); return; }
+  if (t.dataset.ireset) { delete G.items[t.dataset.ireset]; saveG(); renderGuide(); return; }
+  if (t.id === 'greset') { G = JSON.parse(JSON.stringify(GDEF)); saveG(); renderGuide(); return; }
+  if (t.id === 'addroom') { G.rooms.push({ n: 'Bedroom ' + G.rooms.length, a: 12, sun: false }); saveG(); renderGuide(); return; }
   if (t.dataset.rmroom) { G.rooms.splice(+t.dataset.rmroom, 1); saveG(); renderGuide(); return; }
-  if (t.id === 'gadd') { const picks = []; (app._guide || []).forEach(r => { const p = r.picks.map(x => x[0]).find(x => !picks.includes(x)); if (p) picks.push(p); }); const types = new Set(picks.map(p => p.t)); PLAN = PLAN.filter(id => byId[id] && !types.has(byId[id].t)).concat(picks.map(p => p.id)); savePlan(); toast(`Added ${picks.length} picks to your home plan.`); location.hash = '#/plan'; return; }
+  if (t.dataset.gadd) { const tr = t.dataset.gadd, picks = []; (app._guide || []).forEach(r => { const c = r.picks.filter(x => x[2] === tr).map(x => x[0]).concat(r.picks.map(x => x[0])); const p = c.find(x => !picks.includes(x)); if (p) picks.push(p); }); const types = new Set(picks.map(p => p.t)); PLAN = PLAN.filter(id => byId[id] && !types.has(byId[id].t)).concat(picks.map(p => p.id)); savePlan(); toast(`Added ${picks.length} ${TIERN[tr].toLowerCase()} picks to your home plan.`); location.hash = '#/plan'; return; }
   if (t.dataset.fit) { const pairs = t.dataset.fit.split(',').map(x => x.split('>')); const save = pairs.reduce((a, [f, to]) => a + (byId[f] ? byId[f].p : 0) - byId[to].p, 0); pairs.forEach(([f, to]) => swapIn(f, to)); savePlan(); toast(save >= 0 ? `Swapped ${pairs.length} item${pairs.length > 1 ? 's' : ''}, saving ${fmt(save)} EGP.` : `Upgraded for ${fmt(-save)} EGP.`); renderPlan(); return; }
   if (t.id === 'budclear') { BUDGET = 0; store.set('ac-budget', 0); renderPlan(); return; }
   if (t.id === 'planclear') { PLAN = []; savePlan(); renderPlan(); return; }
@@ -867,7 +973,7 @@ document.addEventListener('change', e => {
   else return;
   C.lim = 60; renderFilters(); renderResults();
 });
-document.addEventListener('change', e => { const t = e.target; if (t.dataset && t.dataset.room != null) { const r = G.rooms[+t.dataset.room]; if (!r) return; if (t.dataset.k === 'sun') r.sun = t.checked; else if (t.dataset.k === 'a') r.a = Math.max(0, +String(t.value).replace(',', '.') || 0); else r.n = t.value; saveG(); renderGuide(); } });
+document.addEventListener('change', e => { const t = e.target; if (t.dataset && t.dataset.imax) { const v = +String(t.value).replace(/[^0-9.]/g, ''); item(t.dataset.imax).max = v || null; saveG(); renderGuide(); return; } if (t.dataset && t.dataset.room != null) { const r = G.rooms[+t.dataset.room]; if (!r) return; if (t.dataset.k === 'sun') r.sun = t.checked; else if (t.dataset.k === 'a') r.a = Math.max(0, +String(t.value).replace(',', '.') || 0); else r.n = t.value; saveG(); renderGuide(); } });
 document.addEventListener('input', e => { if (e.target.id === 'cq') { C.q = e.target.value.trim(); renderFilters(); renderResults(); } });
 document.addEventListener('submit', e => { const f = e.target;
   if (f.id === 'budf') { e.preventDefault(); const v = +String(f.b.value).replace(/[^0-9.]/g, ''); BUDGET = v >= 1000 ? Math.round(v) : 0; store.set('ac-budget', BUDGET); if (!BUDGET && v) toast('Enter a budget of at least 1,000 EGP.'); renderPlan(); return; } if (f.id === 'hsearch' || f.id === 'bsearch') { e.preventDefault(); const q = f.q.value.trim(); if (q) location.hash = '#/s/' + encodeURIComponent(q); f.q.blur(); } });
