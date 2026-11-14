@@ -105,7 +105,7 @@ function savePlan() { store.set('ac-plan', PLAN); const c = $('pcount'); if (c) 
 function togglePlan(id) {
   const i = PLAN.indexOf(id), p = byId[id];
   if (i >= 0) { PLAN.splice(i, 1); toast('Removed from your home plan.'); }
-  else { const same = PLAN.find(x => byId[x] && byId[x].t === p.t); PLAN.push(id); toast(same ? `Added. Your plan now has ${PLAN.filter(x => byId[x].t === p.t).length} ${plural(p.t).toLowerCase()}.` : `Added to your home plan (${PLAN.length} item${PLAN.length > 1 ? 's' : ''}).`); }
+  else { const same = PLAN.find(x => byId[x] && byId[x].t === p.t); PLAN.push(id); const bl = BUDGET ? BUDGET - PLAN.reduce((a, x) => a + (byId[x] ? byId[x].p : 0), 0) : null; toast((same ? `Added. Your plan now has ${PLAN.filter(x => byId[x].t === p.t).length} ${plural(p.t).toLowerCase()}.` : `Added to your home plan (${PLAN.length} item${PLAN.length > 1 ? 's' : ''}).`) + (bl == null ? '' : bl >= 0 ? ` ${fmt(bl)} EGP left of your budget.` : ` You are ${fmt(-bl)} EGP over budget.`)); }
   savePlan();
 }
 function toggleCmp(id) {
@@ -384,7 +384,7 @@ function renderFilters() {
   <label class="tog"><input type="checkbox" id="multi" ${C.multi ? 'checked' : ''}> Sold by 2+ stores (price-matched)</label></div>
   <div class="fs"><h3>Brand</h3><div class="opts">${allB.map(b => `<button class="opt${C.brands.has(b) ? ' on' : ''}" data-brand="${esc(b)}" ${!bc[b] && !C.brands.has(b) ? 'disabled' : ''}>${esc(b)} <small>${bc[b] || 0}</small></button>`).join('')}</div></div>
   <div class="fs"><h3>Price (EGP)</h3><div class="rng"><select id="pmin" aria-label="Minimum price"><option value="">Any</option>${steps.map(v => `<option value="${v}" ${C.pmin === v ? 'selected' : ''}>${fmt(v)}</option>`).join('')}</select>–<select id="pmax" aria-label="Maximum price"><option value="">Any</option>${steps.map(v => `<option value="${v}" ${C.pmax === v ? 'selected' : ''}>${fmt(v)}</option>`).join('')}</select></div>
-  </div>`;
+  ${BUDGET ? (() => { const rem = budgetLeft(C.type); return rem > 0 ? `<label class="tog"><input type="checkbox" id="fitb" data-rem="${Math.floor(rem)}" ${C.pmax === Math.floor(rem) ? 'checked' : ''}> Fits my budget <small>(≤ ${fmt(Math.floor(rem))})</small></label>` : `<p class="note" style="margin:6px 0 0">Your home plan is already at or over budget.</p>`; })() : ''}</div>`;
   for (const m of C.meta) {
     if (m.kind === 'bool') { const n = rows.filter(p => match(p, m.k) && p.f[m.k] === 'Yes').length; h += `<div class="fs"><label class="tog"><input type="checkbox" data-bool="${esc(m.k)}" ${C.f[m.k] ? 'checked' : ''} ${!n && !C.f[m.k] ? 'disabled' : ''}> ${esc(m.k)} <small>${n}</small></label></div>`; }
     else if (m.kind === 'range') { const s = C.f[m.k] || {}; h += `<div class="fs"><h3>${esc(m.k)}</h3><div class="rng"><select data-rmin="${esc(m.k)}" aria-label="${esc(m.k)} minimum"><option value="">Min</option>${m.vals.map(v => `<option value="${v}" ${s.min === v ? 'selected' : ''}>${v}</option>`).join('')}</select>–<select data-rmax="${esc(m.k)}" aria-label="${esc(m.k)} maximum"><option value="">Max</option>${m.vals.map(v => `<option value="${v}" ${s.max === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>`; }
@@ -478,40 +478,129 @@ const KITS = {
   'Water dispenser': { pre: p => true },
 };
 const TIER = { budget: [0.15, 'Budget'], mid: [0.5, 'Mid-range'], premium: [0.85, 'Premium'] };
-function kitFor(tier) {
-  const q = TIER[tier][0];
+let BUDGET = +store.get('ac-budget', 0) || 0;
+const psum = a => a.reduce((x, p) => x + (p.p || 0), 0);
+const BCT = {}; const brandCount = (t, b) => { if (!BCT[t]) { BCT[t] = {}; (byType[t] || []).forEach(p => BCT[t][p.b] = (BCT[t][p.b] || 0) + 1); } return BCT[t][b] || 0; };
+function kitAt(q) {
   return Object.entries(KITS).map(([t, k]) => {
     const pool = (byType[t] || []).filter(p => inStock(p) && p.p && k.pre(p));
     if (!pool.length) return null;
-    const bc = {}; pool.forEach(p => bc[p.b] = (bc[p.b] || 0) + 1);
-    const known = pool.filter(p => bc[p.b] >= 3); const P2 = (known.length >= 8 ? known : pool).sort((a, b) => a.p - b.p);
+    const known = pool.filter(p => brandCount(t, p.b) >= 3); const P2 = (known.length >= 8 ? known : pool).sort((a, b) => a.p - b.p);
     const target = P2[Math.min(P2.length - 1, Math.floor(P2.length * q))].p;
     const near = P2.filter(p => Math.abs(p.p - target) <= target * 0.08);
     return (near.filter(p => live(p).length >= 2).sort((a, b) => live(b).length - live(a).length || Math.abs(a.p - target) - Math.abs(b.p - target))[0]) || near[0] || P2[0];
   }).filter(Boolean);
 }
-function applyKit(tier) { PLAN = kitFor(tier).map(p => p.id); savePlan(); toast(`Filled your plan with the ${TIER[tier][1].toLowerCase()} kit. Swap anything you like.`); renderPlan(); }
+const kitFor = tier => kitAt(TIER[tier][0]);
+let _bk = null;
+function budgetKit() {
+  if (!BUDGET) return null; if (_bk && _bk.b === BUDGET) return _bk.r;
+  let r = null; for (let i = 0; i <= 19; i++) { const q = i * 0.05, k = kitAt(q); if (psum(k) <= BUDGET) r = { q, k }; }
+  _bk = { b: BUDGET, r }; return r;
+}
+/* similar = same type, same core specs, key spec within tolerance */
+const CORE = { Refrigerator: ['Layout', 'No frost'], Freezer: ['Type'], 'Washing machine': ['Loading', 'Automation'], Dryer: ['Dryer type'], Dishwasher: ['Installation'],
+  TV: ['Panel'], 'Air conditioner': ['Mode'], 'Water heater': ['Type'], Cooker: ['Burners', 'Width (cm)'], Hob: ['Type', 'Width (cm)'], Hood: ['Width (cm)'], 'Built-in oven': ['Fuel', 'Width (cm)'],
+  'Vacuum & floor care': ['Type'], Fan: ['Type'], 'Coffee machine': ['Type'], 'Iron & steamer': ['Type'], Heater: ['Type'], 'Air cooler & purifier': ['Type'], 'Kitchen small appliance': ['Type'] };
+const TOL = { 'Screen (inch)': 0, 'Capacity (HP)': 0, 'Place settings': 0.1, 'Burners': 0, 'Taps': 0 };
+function similar(p, loose) {
+  const key = KEY[p.t], kv = p.f[key], cats = CORE[p.t] || [], use = cats;
+  const tol = loose ? (key === 'Screen (inch)' ? 0.12 : 0.25) : (TOL[key] ?? 0.12);
+  const c = (byType[p.t] || []).filter(x => x.id !== p.id && x.p && inStock(x) && x.p <= p.p * 0.97 && !PLAN.includes(x.id)
+    && use.every(k => p.f[k] == null || p.f[k] === 'Not stated' || x.f[k] === p.f[k])
+    && Object.entries(p.f).every(([k, v]) => v !== 'Yes' || x.f[k] === 'Yes' || (loose && !/no frost|automation|built-in/i.test(k)))
+    && (typeof kv !== 'number' || (typeof x.f[key] === 'number' && Math.abs(x.f[key] - kv) <= kv * tol + 1e-9 && (loose || x.f[key] >= kv * 0.97 || TOL[key] === 0))));
+  const known = c.filter(x => brandCount(p.t, x.b) >= 3);
+  return (known.length ? known : c).sort((a, b) => a.p - b.p);
+}
+function upgradeFor(p, room) {
+  const key = KEY[p.t], kv = p.f[key], cats = CORE[p.t] || [];
+  if (typeof kv !== 'number' || room <= 0) return null;
+  const c = (byType[p.t] || []).filter(x => x.id !== p.id && x.p && inStock(x) && x.p > p.p && x.p - p.p <= room && brandCount(p.t, x.b) >= 3
+    && cats.filter(k => !/width|burners/i.test(k)).every(k => p.f[k] == null || p.f[k] === 'Not stated' || x.f[k] === p.f[k])
+    && typeof x.f[key] === 'number' && x.f[key] >= kv * 1.1 && (key !== 'Screen (inch)' || x.f[key] - kv >= 5));
+  if (!c.length) return null;
+  return c.sort((a, b) => a.p - b.p || b.f[key] - a.f[key])[0];
+}
+function fitPlan(its, budget) {
+  let tot = psum(its); const swaps = [];
+  const opts = its.map(p => { const s = similar(p, false)[0]; return s ? { from: p, to: s, save: p.p - s.p, loose: false } : null; }).filter(Boolean).sort((a, b) => b.save - a.save);
+  for (const o of opts) { if (tot <= budget) break; swaps.push(o); tot -= o.save; }
+  while (tot > budget) {
+    const need = tot - budget, cands = [];
+    its.forEach(p => { const cur = swaps.find(o => o.from.id === p.id), base = cur ? cur.to : p;
+      similar(p, true).filter(x => x.p < base.p).forEach(x => cands.push({ from: p, to: x, save: base.p - x.p, cur })); });
+    if (!cands.length) break;
+    const enough = cands.filter(c => c.save >= need).sort((a, b) => a.save - b.save);
+    const pick = enough[0] || cands.sort((a, b) => b.save - a.save)[0];
+    if (pick.cur) swaps.splice(swaps.indexOf(pick.cur), 1);
+    swaps.push({ from: pick.from, to: pick.to, save: pick.from.p - pick.to.p, loose: true });
+    tot = psum(its) - swaps.reduce((a, x) => a + x.save, 0);
+  }
+  return { swaps, tot };
+}
+const short = p => p.n.replace(new RegExp('^' + p.b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'i'), '').split(/\s[-–,|]\s|,/)[0].slice(0, 60);
+const tierName = q => q < 0.3 ? 'Budget' : q < 0.65 ? 'Mid-range' : 'Premium';
+function applyKit(tier) {
+  const k = tier === 'fit' ? (budgetKit() || {}).k : kitFor(tier); if (!k) return;
+  PLAN = k.map(p => p.id); savePlan(); toast(tier === 'fit' ? `Filled your plan with the best kit that fits ${fmt(BUDGET)} EGP.` : `Filled your plan with the ${TIER[tier][1].toLowerCase()} kit. Swap anything you like.`); renderPlan();
+}
+function swapIn(from, to) { const i = PLAN.indexOf(from); if (i >= 0) PLAN[i] = to; else if (!PLAN.includes(to)) PLAN.push(to); }
+function budgetLeft(exceptType) { return BUDGET ? BUDGET - psum(PLAN.map(i => byId[i]).filter(p => p && p.t !== exceptType)) : null; }
 function renderPlan(ids) {
   if (ids && ids.length) { const v = ids.map(String).filter(i => byId[i]); if (v.length) { PLAN = v; savePlan(); history.replaceState(null, '', '#/plan'); } }
   const its = PLAN.map(i => byId[i]).filter(Boolean);
-  const kits = Object.keys(TIER).map(k => { const ks = kitFor(k); return `<div class="kit"><b>${TIER[k][1]}</b><strong>${fmt(ks.reduce((a, p) => a + p.p, 0))}<small> EGP</small></strong><span>${ks.length} essentials, from ${esc([...new Set(ks.map(p => p.b))].slice(0, 4).join(', '))}${new Set(ks.map(p => p.b)).size > 4 ? ' and more' : ''}</span><button class="btn${k === 'mid' ? ' green' : ' ghost'}" data-kit="${k}">Use this kit</button></div>`; }).join('');
-  let body = '';
+  const tot = psum(its), left = BUDGET ? BUDGET - tot : null, over = left != null && left < 0;
+  const bk = budgetKit();
+  const kits = Object.keys(TIER).map(k => { const ks = kitFor(k), t = psum(ks), fits = !BUDGET || t <= BUDGET; return `<div class="kit${fits ? '' : ' nofit'}"><b>${TIER[k][1]}</b><strong>${fmt(t)}<small> EGP</small></strong><span>${ks.length} essentials, from ${esc([...new Set(ks.map(p => p.b))].slice(0, 4).join(', '))}${new Set(ks.map(p => p.b)).size > 4 ? ' and more' : ''}${BUDGET ? `<br><em class="${fits ? 'ok' : 'bad'}">${fits ? `${fmt(BUDGET - t)} under your budget` : `${fmt(t - BUDGET)} over your budget`}</em>` : ''}</span><button class="btn${k === 'mid' && !BUDGET ? ' green' : ' ghost'}" data-kit="${k}">Use this kit</button></div>`; }).join('')
+    + (BUDGET ? (bk ? `<div class="kit fitk"><b>Best for your budget</b><strong>${fmt(psum(bk.k))}<small> EGP</small></strong><span>The highest-quality kit of the same ${bk.k.length} essentials that fits ${fmt(BUDGET)} EGP, about <b>${tierName(bk.q).toLowerCase()}</b> level, leaving ${fmt(BUDGET - psum(bk.k))}.</span><button class="btn green" data-kit="fit">Use this kit</button></div>`
+      : `<div class="kit fitk nofit"><b>Best for your budget</b><span>Even the most affordable typical kit costs ${fmt(psum(kitAt(0)))} EGP, ${fmt(psum(kitAt(0)) - BUDGET)} more than your budget. Start with fewer items: add only what you need first.</span></div>`) : '');
+  const budBox = `<div class="bud"><form id="budf" class="budf"><label for="budi">Your budget</label><div class="budin"><input id="budi" name="b" inputmode="numeric" placeholder="e.g. 150,000" value="${BUDGET ? fmt(BUDGET) : ''}"><span>EGP</span></div><button class="btn${BUDGET ? ' ghost' : ' green'}">${BUDGET ? 'Update' : 'Set budget'}</button>${BUDGET ? '<button class="link" type="button" id="budclear">Remove budget</button>' : ''}</form>
+    ${BUDGET ? `<div class="bstat${over ? ' over' : ''}"><div class="bbar"><i style="width:${Math.min(100, tot / BUDGET * 100)}%"></i>${over ? `<u style="left:${BUDGET / tot * 100}%"></u>` : ''}</div>
+     <div class="bnums"><span>Planned <b>${fmt(tot)}</b></span><span>${over ? `<b class="bad">${fmt(-left)} over</b>` : `<b class="ok">${fmt(left)} left</b>`}</span><span>Budget <b>${fmt(BUDGET)}</b></span></div></div>` : `<p class="note" style="margin:0">Set a budget to see what's left, get cheaper look-alikes and a kit that fits.</p>`}</div>`;
+  let smart = '', body = '';
   if (its.length) {
-    const tot = its.reduce((a, p) => a + p.p, 0);
+    const alts = Object.fromEntries(its.map(p => [p.id, similar(p, false)[0]]).filter(([, a]) => a));
+    const altSave = Object.entries(alts).reduce((a, [id, x]) => a + byId[id].p - x.p, 0);
+    const cards = [];
+    if (over) {
+      const fit = fitPlan(its, BUDGET), ok = fit.tot <= BUDGET;
+      if (fit.swaps.length) cards.push(`<div class="sg ${ok ? 'good' : 'warn'}"><h4>${ok ? `Get under budget with ${fit.swaps.length} swap${fit.swaps.length > 1 ? 's' : ''}` : `Swaps that get you closest`}</h4>
+        <p>${ok ? `Swapping to these models brings your plan to <b>${fmt(fit.tot)} EGP</b>, ${fmt(BUDGET - fit.tot)} under budget.` : `These bring you to ${fmt(fit.tot)} EGP, still ${fmt(fit.tot - BUDGET)} over. Consider removing an item you can buy later.`} ${fit.swaps.some(o => o.loose) ? 'Swaps marked “close match” change the size or a spec slightly.' : 'Each one keeps the same key specs.'}</p>
+        <ul>${fit.swaps.map(o => `<li><span>${esc(o.from.t === 'TV' ? 'TV' : o.from.t)}: <s>${esc(o.from.b)}</s> → <a href="#/p/${o.to.id}">${esc(o.to.b)} ${esc(short(o.to))}</a>${o.loose ? ' <em>close match</em>' : ''}</span><b>−${fmt(o.from.p - o.to.p)}</b></li>`).join('')}</ul>
+        <button class="btn green" data-fit="${fit.swaps.map(o => o.from.id + '>' + o.to.id).join(',')}">Apply ${fit.swaps.length > 1 ? 'all ' + fit.swaps.length + ' swaps' : 'swap'}</button></div>`);
+      else cards.push(`<div class="sg warn"><h4>No similar cheaper models</h4><p>Everything in your plan is already the cheapest of its kind. Remove an item to get under budget.</p></div>`);
+    } else if (altSave > 0) {
+      const n = Object.keys(alts).length;
+      cards.push(`<div class="sg"><h4>Spend less, same specs</h4><p>${n} item${n > 1 ? 's have' : ' has'} a similar model for less (same key specs, a brand with several models). Swapping ${n > 1 ? 'all of them' : 'it'} would save <b>${fmt(altSave)} EGP</b>. See “Similar for less” under each item.</p>
+        <button class="btn ghost" data-fit="${Object.entries(alts).map(([id, x]) => id + '>' + x.id).join(',')}">Swap all ${n} and save ${fmtK(altSave)}</button></div>`);
+    }
+    if (BUDGET && left > 0) {
+      let room = left; const ups = [];
+      its.slice().sort((a, b) => b.p - a.p).forEach(p => { const u = upgradeFor(p, room); if (u && ups.length < 4) { ups.push([p, u]); room -= u.p - p.p; } });
+      if (ups.length) cards.push(`<div class="sg"><h4>You have ${fmt(left)} EGP left: upgrades that fit</h4><p>Bigger or more capable models of what you picked, chosen so all of them together stay within budget.</p>
+        <ul>${ups.map(([p, u]) => { const k = KEY[p.t]; return `<li><span>${esc(p.t === 'TV' ? 'TV' : p.t)}: ${esc(String(p.f[k]))} → <a href="#/p/${u.id}"><b>${esc(String(u.f[k]))} ${esc(unit(k) !== k ? unit(k) : '')}</b> ${esc(u.b)} ${esc(short(u))}</a></span><b>+${fmt(u.p - p.p)}</b> <button class="link" data-fit="${p.id}>${u.id}">Upgrade</button></li>`; }).join('')}</ul></div>`);
+      const missing = Object.keys(KITS).filter(t => !its.some(p => p.t === t));
+      const adds = missing.map(t => { const k = KITS[t]; const pool = (byType[t] || []).filter(p => inStock(p) && p.p && k.pre(p) && brandCount(t, p.b) >= 3).sort((a, b) => a.p - b.p); return pool[Math.floor(pool.length * 0.2)]; }).filter(p => p && p.p <= left).slice(0, 5);
+      if (adds.length) cards.push(`<div class="sg"><h4>Still missing an essential?</h4><p>Good-value picks that fit what's left of your budget.</p><ul>${adds.map(p => `<li><span>${esc(p.t === 'TV' ? 'TV' : p.t)}: <a href="#/p/${p.id}">${esc(p.b)} ${esc(short(p))}</a></span><b>${fmt(p.p)}</b> <button class="link" data-plan="${p.id}">Add</button></li>`).join('')}</ul></div>`);
+    }
+    if (cards.length) smart = `<div class="smart"><h2 class="h3">Smart suggestions</h2><div class="sgs">${cards.join('')}</div></div>`;
     const dear = its.reduce((a, p) => { const L = live(p); return a + (L.length ? Math.max(...L.map(o => o.p)) : p.p); }, 0);
     const per = Object.keys(ST).map(s => { const has = its.filter(p => p.of.some(o => o.s === s && o.in !== 0)); return { s, n: has.length, sum: has.reduce((a, p) => a + p.of.find(o => o.s === s && o.in !== 0).p, 0), best: its.filter(p => inStock(p) && p.of[0].s === s).length }; }).filter(x => x.n).sort((a, b) => b.best - a.best || b.n - a.n);
+    const one = per.filter(x => x.n === its.length).sort((a, b) => a.sum - b.sum)[0];
     const groups = Object.keys(GROUPS).map(g => [g, its.filter(p => groupOf(p.t) === g)]).filter(([, a]) => a.length);
     body = `<div class="plan">
-     <div class="plist"><div class="addmore"><span class="prel">Add more</span>${['Refrigerator', 'Washing machine', 'Cooker', 'TV', 'Air conditioner', 'Water heater', 'Dishwasher', 'Freezer', 'Hood', 'Hob', 'Built-in oven', 'Microwave', 'Dryer', 'Air fryer', 'Kettle', 'Iron & steamer', 'Fan', 'Heater', 'Vacuum & floor care', 'Water dispenser'].filter(t => byType[t] && !its.some(p => p.t === t)).map(t => `<a class="pre" href="#/c/${TSLUG[t]}">+ ${esc(t === 'TV' ? 'TV' : t)}</a>`).join('')}</div>${groups.map(([g, a]) => `<h3>${esc(g)}</h3>${a.map(p => `<div class="prow"><a href="#/p/${p.id}"><img src="${img(p)}" alt="" loading="lazy"></a>
-       <div class="pinfo"><small>${esc(p.t)} · ${esc(p.b)}</small><a href="#/p/${p.id}">${esc(p.n)}</a><span class="at">${sdot(p.of[0].s)}${inStock(p) ? (live(p).length > 1 ? 'Cheapest at ' : 'At ') : 'Out of stock · '}<b>${esc(sname(p.of[0].s))}</b>${gap(p) ? `<span class="sv">save ${fmt(gap(p))}</span>` : ''}</span></div>
-       <div class="pprice"><strong>${fmt(p.p)}</strong><small>EGP</small><div><a href="#/c/${TSLUG[p.t]}">Swap</a> · <button class="link" data-plan="${p.id}">Remove</button></div></div></div>`).join('')}`).join('')}</div>
-     <aside class="psum"><h3>Your total</h3><div class="ptot"><strong>${fmt(tot)}</strong><small>EGP</small></div><p>Buying each item at its cheapest in-stock store. At the dearest stores the same list costs ${fmt(dear)} EGP, <b>${fmt(dear - tot)} EGP more</b>.</p>
+     <div class="plist"><div class="addmore"><span class="prel">Add more</span>${['Refrigerator', 'Washing machine', 'Cooker', 'TV', 'Air conditioner', 'Water heater', 'Dishwasher', 'Freezer', 'Hood', 'Hob', 'Built-in oven', 'Microwave', 'Dryer', 'Air fryer', 'Kettle', 'Iron & steamer', 'Fan', 'Heater', 'Vacuum & floor care', 'Water dispenser'].filter(t => byType[t] && !its.some(p => p.t === t)).map(t => `<a class="pre" href="#/c/${TSLUG[t]}${BUDGET && left > 0 ? '?pmax=' + Math.floor(left) : ''}">+ ${esc(t === 'TV' ? 'TV' : t)}</a>`).join('')}</div>${groups.map(([g, a]) => `<h3>${esc(g)}</h3>${a.map(p => { const al = alts[p.id]; return `<div class="prow"><a href="#/p/${p.id}"><img src="${img(p)}" alt="" loading="lazy"></a>
+       <div class="pinfo"><small>${esc(p.t)} · ${esc(p.b)}</small><a href="#/p/${p.id}">${esc(p.n)}</a><span class="at">${sdot(p.of[0].s)}${inStock(p) ? (live(p).length > 1 ? 'Cheapest at ' : 'At ') : 'Out of stock · '}<b>${esc(sname(p.of[0].s))}</b>${gap(p) ? `<span class="sv">save ${fmt(gap(p))}</span>` : ''}</span>
+       ${al ? `<span class="alt">Similar for <b>${fmt(p.p - al.p)} less</b>: <a href="#/p/${al.id}">${esc(al.b)} ${esc(short(al))}</a> at ${esc(sname(al.of[0].s))} <button class="link" data-fit="${p.id}>${al.id}">Swap</button></span>` : ''}</div>
+       <div class="pprice"><strong>${fmt(p.p)}</strong><small>EGP</small>${BUDGET ? `<em>${Math.round(p.p / BUDGET * 100)}% of budget</em>` : ''}<div><a href="#/c/${TSLUG[p.t]}">Browse</a> · <button class="link" data-plan="${p.id}">Remove</button></div></div></div>`; }).join('')}`).join('')}</div>
+     <aside class="psum"><h3>Your total</h3><div class="ptot"><strong>${fmt(tot)}</strong><small>EGP</small></div>${BUDGET ? `<p class="${over ? 'bad' : 'ok'}" style="font-weight:700;margin-top:0">${over ? `${fmt(-left)} EGP over your ${fmt(BUDGET)} budget` : `${fmt(left)} EGP left of ${fmt(BUDGET)}`}</p>` : ''}<p>Buying each item at its cheapest in-stock store. At the dearest stores the same list costs ${fmt(dear)} EGP, <b>${fmt(dear - tot)} EGP more</b>.</p>
+      ${one ? `<p>Prefer one store? <b>${esc(sname(one.s))}</b> has all ${its.length} items for ${fmt(one.sum)} EGP (+${fmt(one.sum - tot)}).</p>` : ''}
       <h4>By store</h4><table class="spec"><tbody>${per.map(x => `<tr><th>${sdot(x.s)}${esc(sname(x.s))}</th><td>${x.best} cheapest</td><td>${x.n}/${its.length} items${x.n === its.length ? ` · ${fmt(x.sum)}` : ''}</td></tr>`).join('')}</tbody></table>
-      <p class="note">“${its.length}/${its.length} items” means you could buy everything at that store, at the total shown.</p>
       <div class="pact"><button class="btn" id="share" data-url="${esc(location.href.split('#')[0] + '#/plan/' + its.map(p => p.id).join(','))}">Copy link to this plan</button><button class="link" id="planclear">Clear plan</button></div></aside></div>`;
-  } else body = `<div class="empty" style="text-align:left">Your plan is empty. Start from a kit above, or tap the <b>house button</b> on any product to add it.</div>`;
-  app.innerHTML = pageHead({ crumbs: [[null, 'Home plan']], title: 'Furnish your home', sub: 'Build a list of everything you need, see the cheapest store for each item and your total. It is saved in this browser, and you can share it as a link.' }) +
-   `<section class="sec" style="padding-top:30px"><div class="wrap"><h2 class="h3" style="margin-top:0">Start from a ready-made kit</h2><p class="note" style="margin:0 0 14px">Typical choices for a new home: a 350–550 L no-frost fridge, a 7–10 kg automatic washer, a 5-burner cooker, a 55" TV, a 1.5 HP AC, a 40–60 L water heater, a microwave, a canister vacuum and a water dispenser. Picked at the low, middle and high end of in-stock prices, preferring models sold by several stores.</p>
+  } else body = `<div class="empty" style="text-align:left">Your plan is empty. ${BUDGET && bk ? 'Use <b>Best for your budget</b> above, or s' : 'S'}tart from a kit, or tap the <b>house button</b> on any product to add it.</div>`;
+  app.innerHTML = pageHead({ crumbs: [[null, 'Home plan']], title: 'Furnish your home', sub: 'Set a budget, build a list of everything you need, and see the cheapest store for each item. It is saved in this browser, and you can share it as a link.' }) +
+   `<section class="sec" style="padding-top:30px"><div class="wrap">${budBox}${smart}<h2 class="h3">Start from a ready-made kit</h2><p class="note" style="margin:0 0 14px">Typical choices for a new home: a 350–550 L no-frost fridge, a 7–10 kg automatic washer, a 5-burner cooker, a 55" TV, a 1.5 HP AC, a 40–60 L water heater, a microwave, a canister vacuum and a water dispenser. Picked at the low, middle and high end of in-stock prices, preferring models sold by several stores.</p>
    <div class="kits">${kits}</div>${body}</div></section>`;
 }
 
@@ -527,6 +616,7 @@ function renderAbout() {
    <h2>Popular choices and top picks</h2><p>Each appliance page has one-tap choices such as <em>Top freezer</em>, <em>350–450 L</em>, <em>Half automatic</em> or <em>65"</em>. Your filters are kept in the page address, so you can bookmark or send the link. Top picks are worked out from whatever matches your filters: the lowest price; the best value (the cheapest with at least the typical capacity or size); the model sold by the most stores; the biggest saving between stores; and the top of the range.</p>
    <p>Where a fridge name doesn't state its layout, it is taken from well-known Egyptian top-freezer model series (such as Sharp SJ, Tornado RF, Toshiba GR and Fresh FNT); otherwise it shows as “Not stated”. Washers are handled the same way for front or top loading.</p>
    <h2>Home plan</h2><p>Tap the house button on any product to add it to your home plan. The plan shows the cheapest store for each item, your total, and which stores carry everything. The budget, mid-range and premium kits are starting points picked automatically from in-stock models; swap anything you like.</p>
+   <h2>Budget tools</h2><p>Set a budget on the home plan page to see what's left. For each item the site looks for a <strong>similar model for less</strong>: the same type, the same key specs (such as fridge layout, washer type, TV size and panel, AC horsepower) and every feature the original has, from a brand with several models. If you're over budget, “Get under budget” picks the swaps with the biggest savings first; only if that isn't enough does it use “close matches” with a slightly different size. If you have money left, it suggests the cheapest upgrades to a bigger size, and essentials you haven't added yet. “Best for your budget” is the highest-quality kit of the nine essentials that fits.</p>
    <h2>Before you buy</h2><p>Prices and stock change daily, and installation, delivery and warranty differ by store. Always confirm on the store's own page.</p></div></section>`;
 }
 function renderNotFound() { app.innerHTML = pageHead({ title: 'Page not found', sub: 'That page doesn\'t exist. Pick a department instead.' }) + `<section class="sec"><div class="wrap">${deptTiles()}</div></section>`; }
@@ -579,6 +669,8 @@ document.addEventListener('click', e => {
   if (t.dataset.cmp) { toggleCmp(t.dataset.cmp); return; }
   if (t.dataset.plan) { e.preventDefault(); togglePlan(t.dataset.plan); if (location.hash.startsWith('#/plan')) renderPlan(); return; }
   if (t.dataset.kit) { applyKit(t.dataset.kit); return; }
+  if (t.dataset.fit) { const pairs = t.dataset.fit.split(',').map(x => x.split('>')); const save = pairs.reduce((a, [f, to]) => a + (byId[f] ? byId[f].p : 0) - byId[to].p, 0); pairs.forEach(([f, to]) => swapIn(f, to)); savePlan(); toast(save >= 0 ? `Swapped ${pairs.length} item${pairs.length > 1 ? 's' : ''}, saving ${fmt(save)} EGP.` : `Upgraded for ${fmt(-save)} EGP.`); renderPlan(); return; }
+  if (t.id === 'budclear') { BUDGET = 0; store.set('ac-budget', 0); renderPlan(); return; }
   if (t.id === 'planclear') { PLAN = []; savePlan(); renderPlan(); return; }
   if (t.dataset.pre != null && $('presets')) { const [, sel] = $('presets')._ps[+t.dataset.pre]; if (presetOn(sel)) Object.keys(sel).forEach(k => delete C.f[k]); else Object.entries(sel).forEach(([k, v]) => C.f[k] = v instanceof Set ? new Set(v) : v === true ? true : { ...v }); C.lim = 60; renderFilters(); renderResults(); return; }
   if (t.dataset.rm) { CMP = CMP.filter(x => x !== t.dataset.rm); saveCmp(); if (location.hash.startsWith('#/compare')) { location.hash = '#/compare' + (CMP.length ? '/' + CMP.join(',') : ''); } return; }
@@ -597,6 +689,7 @@ document.addEventListener('change', e => {
   if (t.id === 'pmin') C.pmin = t.value ? +t.value : null;
   else if (t.id === 'pmax') C.pmax = t.value ? +t.value : null;
   else if (t.id === 'instock') C.instock = t.checked;
+  else if (t.id === 'fitb') C.pmax = t.checked ? +t.dataset.rem : null;
   else if (t.id === 'multi') C.multi = t.checked;
   else if (t.dataset.bool) C.f[t.dataset.bool] = t.checked || null;
   else if (t.dataset.rmin || t.dataset.rmax) { const k = t.dataset.rmin || t.dataset.rmax; const s = C.f[k] || (C.f[k] = {}); s[t.dataset.rmin ? 'min' : 'max'] = t.value ? +t.value : null; }
@@ -605,7 +698,8 @@ document.addEventListener('change', e => {
   C.lim = 60; renderFilters(); renderResults();
 });
 document.addEventListener('input', e => { if (e.target.id === 'cq') { C.q = e.target.value.trim(); renderFilters(); renderResults(); } });
-document.addEventListener('submit', e => { const f = e.target; if (f.id === 'hsearch' || f.id === 'bsearch') { e.preventDefault(); const q = f.q.value.trim(); if (q) location.hash = '#/s/' + encodeURIComponent(q); f.q.blur(); } });
+document.addEventListener('submit', e => { const f = e.target;
+  if (f.id === 'budf') { e.preventDefault(); const v = +String(f.b.value).replace(/[^0-9.]/g, ''); BUDGET = v >= 1000 ? Math.round(v) : 0; store.set('ac-budget', BUDGET); if (!BUDGET && v) toast('Enter a budget of at least 1,000 EGP.'); renderPlan(); return; } if (f.id === 'hsearch' || f.id === 'bsearch') { e.preventDefault(); const q = f.q.value.trim(); if (q) location.hash = '#/s/' + encodeURIComponent(q); f.q.blur(); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('filters')?.classList.remove('open'); $('top').classList.remove('open'); } });
 window.addEventListener('hashchange', route);
 
