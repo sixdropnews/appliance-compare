@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appliance Compare: every Azmy Co appliance, side by side</title>
+<meta name="description" content="Browse and compare 718 home appliances from the Azmy Co catalogue: fridges, washing machines, TVs, ovens, air conditioners and more. Filter by real specs and compare up to 4 models side by side.">
+<meta property="og:title" content="Appliance Compare">
+<meta property="og:description" content="718 appliances, 25 types, 39 brands. Filter by real specs and compare side by side.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#101317">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23101317'/%3E%3Crect x='6' y='7' width='12' height='4' fill='%2300a651'/%3E%3Crect x='6' y='14' width='16' height='4' fill='%23ffd400'/%3E%3Crect x='6' y='21' width='20' height='4' fill='%23e5322d'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..900&family=Archivo+Narrow:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<a class="skip" href="#app">Skip to content</a>
+<header class="top" id="top">
+ <div class="wrap">
+  <a class="logo" href="#/" aria-label="Appliance Compare home">
+   <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1d2228"/><path d="M6 7h11l2 2-2 2H6z" fill="#00a651"/><path d="M6 14h15l2 2-2 2H6z" fill="#ffd400"/><path d="M6 21h19l2 2-2 2H6z" fill="#e5322d"/></svg>
+   <span>Appliance Compare</span>
+  </a>
+  <nav class="nav" id="nav" aria-label="Main">
+   <a href="#/departments" data-nav="departments">Departments</a>
+   <a href="#/deals" data-nav="deals">Deals</a>
+   <a href="#/brands" data-nav="brands">Brands</a>
+   <a href="#/about" data-nav="about">How it works</a>
+  </nav>
+  <form class="hs" id="hsearch" role="search">
+   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+   <input type="search" name="q" placeholder="Search 718 products, brands, models" aria-label="Search products">
+  </form>
+  <a class="cbtn" href="#/compare" id="cbtn">Compare <b id="ccount">0</b></a>
+  <button class="burger" id="burger" aria-label="Menu" aria-expanded="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+ </div>
+</header>
+<main id="app" tabindex="-1"><div class="wrap" style="padding:80px 0;color:#888">Loading the catalogue…</div></main>
+<footer class="foot night">
+ <div class="wrap">
+  <div class="fgrid">
+   <div>
+    <a class="logo" href="#/" style="margin-bottom:12px"><svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1d2228"/><path d="M6 7h11l2 2-2 2H6z" fill="#00a651"/><path d="M6 14h15l2 2-2 2H6z" fill="#ffd400"/><path d="M6 21h19l2 2-2 2H6z" fill="#e5322d"/></svg><span>Appliance Compare</span></a>
+    <p>An independent, easy way to browse and compare the full Azmy Co appliance catalogue. Every product links to its page on azmyco.com to buy.</p>
+   </div>
+   <div><h4>Departments</h4><div id="fdepts"></div></div>
+   <div><h4>Explore</h4><a href="#/deals">Best deals</a><a href="#/brands">All brands</a><a href="#/compare">Your comparison</a><a href="#/about">How it works</a></div>
+   <div><h4>Source</h4><a href="https://azmyco.com/" target="_blank" rel="noopener">azmyco.com</a><p id="fupd" style="margin-top:8px">Prices in EGP, as listed on 14 Nov 2026.</p></div>
+  </div>
+  <div class="fbase"><span>Prices and availability can change; always confirm on azmyco.com before buying.</span><span>Specs are read from each product's listed name.</span></div>
+ </div>
+</footer>
+<div class="tray" id="tray" aria-live="polite"><div class="wrap"><div class="its" id="tits"></div><button class="clr" id="tclr">Clear</button><a class="go" id="tgo" href="#/compare">Compare now</a></div></div>
+<div class="toast" id="toast" role="status"></div>
+<script src="assets/app.js"></script>
+</body>
+</html>
