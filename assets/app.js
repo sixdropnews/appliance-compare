@@ -67,7 +67,7 @@ const live = p => p.of.filter(o => o.in !== 0);
 const inStock = p => p.of.some(o => o.in !== 0);
 const gap = p => { const pr = live(p).map(o => o.p); return pr.length > 1 ? Math.max(...pr) - Math.min(...pr) : 0; };
 const gapPct = p => { const pr = live(p).map(o => o.p); return pr.length > 1 ? Math.round((Math.max(...pr) - Math.min(...pr)) / Math.max(...pr) * 100) : 0; };
-const STC = { azmy: '#0b6e4f', btech: '#e5322d', raya: '#1f5fbf', carrefour: '#0e4da4', '2b': '#f7941d', elaraby: '#7a3fb0' };
+const STC = { azmy: '#0b6e4f', btech: '#e5322d', raya: '#1f5fbf', carrefour: '#0e4da4', '2b': '#f7941d', elaraby: '#7a3fb0', cairocart: '#d6336c', cairosales: '#0f8b8d', morshedy: '#b8860b', lg: '#a50034', samsung: '#1428a0', bosch: '#5f6b73' };
 const sdot = s => `<i class="sd" style="background:${STC[s] || '#888'}"></i>`;
 const dateTxt = () => new Date(UPD + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -863,7 +863,7 @@ function renderGuide() {
 function renderAbout() {
   app.innerHTML = pageHead({ crumbs: [[null, 'How it works']], title: 'How this site works', sub: 'What the numbers mean, where they come from, and what to double-check.' }) +
   `<section class="sec" style="padding-top:36px"><div class="wrap prose">
-   <h2>Where the data comes from</h2><p>Products, prices, old prices, stock, photos and links were collected from the public websites of ${Object.values(ST).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>`).join(', ')} on <strong>${dateTxt()}</strong>. Only home appliances are included: no phones, laptops, personal care, spare parts or accessories. Prices are in Egyptian pounds. To buy, follow a store link on any product.</p>
+   <h2>Where the data comes from</h2><p>Products, prices, old prices, stock, photos and links were collected from the public websites of ${Object.values(ST).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>`).join(', ')} on <strong>${dateTxt()}</strong>. Only home appliances are included: no phones, laptops, personal care, spare parts or accessories. Prices are in Egyptian pounds. To buy, follow a store link on any product.</p><p>${Object.values(ST).filter(x => x.brand).map(x => esc(x.name)).join(', ')} are the brands' own Egyptian online shops, so they only list their own brand. Samsung's Egyptian site is in Arabic; product names are shown in English.</p>
    <h2>How the same product is matched across stores</h2><p>Each store names products differently, so products are matched by <strong>brand and model code</strong> (for example <em>RDNE455MK</em> or <em>65U8000F</em>). Small differences are allowed, such as a colour suffix (<em>SJ-GV63G-BK</em>) or Samsung's regional prefix (<em>UA55U8000F</em>). TVs only match when the screen size is the same. Products without a model code in their name can't be matched and appear once per store.</p>
    <h2>Which price you see</h2><p>The headline price is the <strong>lowest in-stock price</strong> across all stores. If no store has it in stock, it shows the last listed price and is marked out of stock. B.TECH listings from marketplace sellers say who the seller is.</p>
    <h2>How specs are worked out</h2><p>Specs are read from product names, such as “Bosch Refrigerator 522 Liter No Frost Stainless”. If a name doesn't mention something, that spec is left blank, or counted as “No” for yes/no filters. So a product may have a feature its name doesn't state. Some fridge layouts come from the maker's model series: Bosch <strong>KDN</strong> is top-freezer, <strong>KGN</strong> is bottom-freezer, LG <strong>GC-B257</strong> is side-by-side.</p>
@@ -985,6 +985,17 @@ window.addEventListener('hashchange', route);
 fetch('data/products.json').then(r => r.json()).then(D => {
   P = D.products; GROUPS = D.groups; KEY = D.key; ST = D.stores; UPD = D.updated;
   P.forEach(p => { byId[p.id] = p; (byType[p.t] = byType[p.t] || []).push(p); });
+  // products that were merged into another one keep working: migrate saved ids, and old links resolve
+  const AL = D.al || {}, mig = id => (byId[id] ? id : AL[id] && byId[AL[id]] ? AL[id] : id);
+  if (Object.keys(AL).length) {
+    const uniq = a => [...new Set(a.map(mig))];
+    const c2 = uniq(CMP), p2 = uniq(PLAN), w2 = {};
+    Object.entries(WATCH).forEach(([k, v]) => { const n = mig(k); if (!w2[n]) w2[n] = v; });
+    if (c2.join() !== CMP.join()) { CMP = c2; store.set('ac-cmp', CMP); }
+    if (p2.join() !== PLAN.join()) { PLAN = p2; store.set('ac-plan', PLAN); }
+    if (Object.keys(w2).join() !== Object.keys(WATCH).join()) { WATCH = w2; store.set('ac-watch', WATCH); }
+    Object.entries(AL).forEach(([o, n]) => { if (!byId[o] && byId[n]) byId[o] = byId[n]; });
+  }
   Object.keys(byType).forEach(t => TSLUG[t] = slug(t)); Object.keys(GROUPS).forEach(g => GSLUG[g] = slug(g));
   const bc = {}; P.forEach(p => bc[p.b] = (bc[p.b] || 0) + 1); BRANDS = Object.entries(bc).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   computeGoodPrice();
