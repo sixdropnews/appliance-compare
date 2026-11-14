@@ -697,6 +697,7 @@ const GDEF = { people: 4, tiers: ['mid'], stores: [], avoid: [], colours: [], in
 let G = Object.assign({}, GDEF, store.get('ac-guide2', {}));
 const saveG = () => store.set('ac-guide2', G);
 const COLOUR_T = ['Refrigerator', 'Freezer', 'Minibar & cooler', 'Washing machine', 'Washer-dryer', 'Dryer', 'Wash tower', 'Dishwasher', 'Cooker', 'Built-in oven', 'Hob', 'Hood', 'Microwave', 'Oven & hob set', 'Water dispenser', 'Kettle', 'Air fryer', 'Coffee machine'];
+const tiersOrd = () => ['budget', 'mid', 'premium'].filter(t => G.tiers.includes(t));
 const TIERQ = { budget: 0.12, mid: 0.5, premium: 0.85 }, TIERN = { budget: 'Budget', mid: 'Mid-range', premium: 'Premium' };
 const hpFor = (a, sun) => { const x = a * (sun ? 1.25 : 1); return x <= 15 ? 1.5 : x <= 22 ? 2.25 : x <= 30 ? 3 : x <= 40 ? 4 : 5; };
 const HP_RANGE = { 1.5: [1.25, 1.5], 2.25: [2, 2.25], 3: [2.75, 3], 4: [4, 4.5], 5: [5, 5] };
@@ -775,7 +776,7 @@ function guideRows() {
     const known = all.filter(p => brandCount(r.t, p.b) >= 3), pool = (known.length >= 4 ? known : all).sort((a, b) => a.p - b.p);
     const at = q => { if (!pool.length) return null; const tgt = pool[Math.min(pool.length - 1, Math.floor(pool.length * q))].p; const near = pool.filter(p => Math.abs(p.p - tgt) <= tgt * 0.1); return near.filter(p => live(p).length > 1).sort((a, b) => (a.gp ? a.gp.r : 1) - (b.gp ? b.gp.r : 1))[0] || near[0]; };
     const picks = [];
-    G.tiers.forEach(tr => { const p = at(TIERQ[tr]); if (p) picks.push([p, TIERN[tr] + ' pick', tr]); });
+    tiersOrd().forEach(tr => { const p = at(TIERQ[tr]); if (p) picks.push([p, TIERN[tr] + ' pick', tr]); });
     const val = pool.filter(p => p.gp && p.gp.lab === 'great')[0] || pool[0];
     if (val && !picks.some(x => x[0].id === val.id)) picks.push([val, 'Best value', null]);
     return { ...r, n: all.length, picks };
@@ -796,7 +797,7 @@ function relaxHints(r) {
 }
 function guideLink(r) {
   const q = new URLSearchParams();
-  if (r.ranges && r.ranges.length === 1) q.set('r.' + KEY[r.t], (r.ranges[0][0] ?? '') + '~' + (r.ranges[0][1] ?? ''));
+  if (r.ranges && r.ranges.length) { const lo = Math.min(...r.ranges.map(x => x[0] ?? 0)), hi = r.ranges.some(x => x[1] == null) ? null : Math.max(...r.ranges.map(x => x[1])); q.set('r.' + KEY[r.t], (lo || '') + '~' + (hi ?? '')); }
   Object.entries(r.it.f).forEach(([k, v]) => { const m = metaFor(r.t).find(x => x.k === k); if (v.length && m && m.kind !== 'min') q.set('f.' + k, v.join('|')); });
   r.it.must.forEach(k => q.set('f.' + k, '1'));
   if (r.it.brands.length) q.set('b', r.it.brands.join('|'));
@@ -828,7 +829,7 @@ function customPanel(t) {
 function renderGuide() {
   const rows = guideRows(); app._guide = rows;
   const allT = Object.values(GROUPS).flat().filter(t => byType[t]);
-  const tierTot = G.tiers.map(tr => [tr, rows.reduce((a, r) => { const p = r.picks.find(x => x[2] === tr); return a + (p ? p[0].p : 0); }, 0)]);
+  const tierTot = tiersOrd().map(tr => [tr, rows.reduce((a, r) => { const p = r.picks.find(x => x[2] === tr); return a + (p ? p[0].p : 0); }, 0)]);
   const brandsAll = BRANDS.slice(0, 36).map(b => b[0]);
   const colours = [...new Set(P.map(p => p.f.Colour).filter(Boolean))];
   const summary = t => { const it = item(t), bits = []; Object.entries(it.f).forEach(([k, v]) => { if (v.length) bits.push(metaFor(t).find(m => m.k === k)?.kind === 'min' ? `${k} ≥ ${v[0]}` : v.join(' / ')); }); it.must.forEach(k => bits.push(k.replace(/ \(.*\)/, ''))); if (it.brands.length) bits.push(it.brands.join(', ')); if (it.max) bits.push('≤ ' + fmt(it.max) + ' EGP'); return bits; };
@@ -849,7 +850,7 @@ function renderGuide() {
     <div class="gs"><button class="link" id="greset">Start over</button></div>
    </div>
    <div class="gres"><div class="gsum"><div class="gtots">${tierTot.map(([tr, v]) => `<div><span>${TIERN[tr]} total</span><strong>${fmt(v)} <small>EGP</small></strong>${BUDGET ? `<em class="${v <= BUDGET ? 'ok' : 'bad'}">${v <= BUDGET ? fmt(BUDGET - v) + ' under' : fmt(v - BUDGET) + ' over'} budget</em>` : ''}</div>`).join('')}</div>
-     <div class="gadds">${G.tiers.map(tr => `<button class="btn${tr === G.tiers[0] ? ' green' : ''}" data-gadd="${tr}">Add ${TIERN[tr].toLowerCase()} picks to plan</button>`).join('')}</div></div>
+     <div class="gadds">${tiersOrd().map((tr, i) => `<button class="btn${i === 0 ? ' green' : ''}" data-gadd="${tr}">Add ${TIERN[tr].toLowerCase()} picks to plan</button>`).join('')}</div></div>
    ${rows.length ? '' : '<div class="empty">Pick at least one appliance on the left.</div>'}
    ${rows.map((r, i) => { const first = rows.findIndex(x => x.t === r.t) === i, bits = summary(r.t); return `<div class="grow"><div class="gh"><div><h3>${esc(r.t === 'TV' ? 'TV' : r.t)}</h3><p>${esc(r.why || 'Any size')}${bits.length ? ' · ' + esc(bits.join(' · ')) : ''}</p></div>
      <div class="ghb">${first ? `<button class="btn ghost sm${G.open === r.t ? ' on' : ''}" data-open="${r.t}">${G.open === r.t ? 'Done' : 'Customise'}</button>` : ''}<a class="more" href="${guideLink(r)}">See all ${fmt(r.n)} →</a></div></div>
